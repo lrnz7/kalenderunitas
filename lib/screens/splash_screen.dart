@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -8,26 +9,30 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    
+
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
-    
+
     _controller.forward();
-    
-    // Navigasi setelah 2.5 detik KE MAINPAGE DENGAN ADMIN
+
+    // 🔥 TEST FIRESTORE PALING SEDERHANA
+    testFirestore();
+
+    // Navigasi setelah 2.5 detik ke MainPage
     Future.delayed(const Duration(seconds: 2, milliseconds: 500), () {
       if (mounted) {
         Navigator.pushReplacement(
@@ -38,6 +43,22 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         );
       }
     });
+  }
+
+  // 🔥 FIRESTORE TEST FUNCTION
+  Future<void> testFirestore() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('test')
+          .add({
+            'status': 'Firestore connected',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+
+      debugPrint('🔥 Firestore CONNECTED');
+    } catch (e) {
+      debugPrint('❌ Firestore ERROR: $e');
+    }
   }
 
   @override
@@ -56,7 +77,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo dengan efek glow
               Container(
                 width: 180,
                 height: 180,
@@ -75,8 +95,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   borderRadius: BorderRadius.circular(90),
                   child: Image.asset(
                     'assets/images/logo_unitas_white.png',
-                    width: 150,
-                    height: 150,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
                       return const Icon(
@@ -89,8 +107,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 ),
               ),
               const SizedBox(height: 30),
-              
-              // Title dengan efek
+
               const Text(
                 'KALENDER UNITAS',
                 style: TextStyle(
@@ -107,8 +124,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   ],
                 ),
               ),
-              
-              // Subtitle dengan animasi
+
               const SizedBox(height: 10),
               const Text(
                 'Sistem Informasi 2025-2026',
@@ -118,8 +134,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   fontStyle: FontStyle.italic,
                 ),
               ),
-              
-              // Motto
+
               const SizedBox(height: 5),
               const Text(
                 'Organize • Schedule • Execute',
@@ -128,35 +143,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   color: Colors.white60,
                 ),
               ),
-              
-              // Loading indicator dengan efek
+
               const SizedBox(height: 50),
-              SizedBox(
-                width: 60,
-                height: 60,
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                    ),
-                    const Center(
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 4,
-                      ),
-                    ),
-                  ],
-                ),
+              const CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 4,
               ),
-              
-              // Loading text
+
               const SizedBox(height: 20),
               const Text(
                 'Memuat aplikasi...',
@@ -165,8 +158,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   color: Colors.white70,
                 ),
               ),
-              
-              // Version info
+
               const SizedBox(height: 40),
               const Text(
                 'v1.0.0',
@@ -179,27 +171,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           ),
         ),
       ),
-      
-      // Footer
       bottomNavigationBar: Container(
         height: 60,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0066CC),
-              const Color(0xFF0055AA),
-            ],
-          ),
-        ),
-        child: const Center(
-          child: Text(
-            '© 2025 Unitas Sistem Informasi',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white60,
-            ),
+        alignment: Alignment.center,
+        color: const Color(0xFF0055AA),
+        child: const Text(
+          '© 2025 Unitas Sistem Informasi',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.white60,
           ),
         ),
       ),

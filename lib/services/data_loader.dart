@@ -1,224 +1,149 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 
 class DataLoader {
   static const String storageKey = 'events_storage_v1';
-  static const String googleScriptUrl = "https://script.google.com/macros/s/AKfycbxnLKDPg2s6T2ug0vAKLVsOOqDzl1g3-1KirRKPl7xKSPbkX7K1jbeLOA_VYUvcBKMO/exec";
-  static bool useOnline = true;
-  
-  // Load events: coba online dulu, fallback ke lokal
+  static bool _firebaseInitialized = false;
+
+  // Load events dengan fallback system
   static Future<List<EventModel>> loadEvents() async {
-    print("📡 Loading events...");
+    print('📱 Loading events...');
     
-    if (useOnline) {
+    final List<EventModel> allEvents = [];
+    
+    // 1. Coba dari Firestore (online)
+    try {
+      final firestoreEvents = await _loadFromFirestore();
+      if (firestoreEvents.isNotEmpty) {
+        allEvents.addAll(firestoreEvents);
+        print('✅ Loaded ${firestoreEvents.length} events from Firestore');
+        
+        // Simpan ke local untuk offline
+        await _saveToLocal(allEvents);
+        return allEvents;
+      }
+    } catch (e) {
+      print('⚠️ Firestore load failed: $e');
+    }
+    
+    // 2. Coba dari local storage
+    try {
+      final localEvents = await _loadFromLocal();
+      if (localEvents.isNotEmpty) {
+        allEvents.addAll(localEvents);
+        print('📱 Loaded ${localEvents.length} events from local storage');
+      }
+    } catch (e) {
+      print('⚠️ Local storage load failed: $e');
+    }
+    
+    // 3. Fallback ke assets
+    if (allEvents.isEmpty) {
       try {
-        print("🔄 Trying online sync...");
-        final onlineEvents = await _loadFromGoogleSheets();
-        if (onlineEvents.isNotEmpty) {
-          print("✅ Online sync successful: ${onlineEvents.length} events");
-          await _saveToLocal(onlineEvents);
-          return onlineEvents;
-        } else {
-          print("ℹ️ No events online, checking local...");
-        }
+        final assetEvents = await _loadFromAssets();
+        allEvents.addAll(assetEvents);
+        print('📦 Loaded ${assetEvents.length} events from assets');
+        await _saveToLocal(allEvents);
       } catch (e) {
-        print("❌ Online load failed: $e");
+        print('⚠️ Assets load failed: $e');
       }
     }
     
-    // Fallback ke lokal
-    final localEvents = await _loadFromLocal();
-    print("📱 Using local data: ${localEvents.length} events");
-    return localEvents;
+    return allEvents;
   }
-  
-  static Future<List<EventModel>> _loadFromGoogleSheets() async {
+
+  // Add event
+  static Future<void> addEvent(EventModel newEvent, {String? createdBy}) async {
+    print('💾 Saving event: ${newEvent.title}');
+    
+    // 1. Simpan ke local (always work)
+    final prefs = await SharedPreferences.getInstance();
+    final current = await _loadFromLocal();
+    current.add(newEvent);
+    await _saveToLocal(current);
+    
+    // 2. Coba sync ke Firestore (if available)
     try {
-      print("🌐 Fetching from Google Sheets...");
-      final response = await http.get(
-        Uri.parse(googleScriptUrl),
-      ).timeout(const Duration(seconds: 10));
-      
-      print("📡 Response status: ${response.statusCode}");
-      
-      if (response.statusCode == 200) {
-        print("📡 Response body: ${response.body}");
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        
-        if (data['success'] == true) {
-          final List<dynamic> eventsData = data['data'];
-          print("📊 Events data count: ${eventsData.length}");
-          
-          final events = eventsData.map((e) {
-            print("📝 Processing event: ${e['title']}");
-            return EventModel.fromJson(e);
-          }).toList();
-          
-          return events;
-        } else {
-          print("❌ API error: ${data['error']}");
-        }
-      } else {
-        print("❌ HTTP error: ${response.statusCode}");
-      }
+      final firestore = FirebaseFirestore.instance;
+      await firestore.collection('events').add({
+        ...newEvent.toJson(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': createdBy ?? 'admin',
+        'synced': true,
+      });
+      print('✅ Event synced to Firestore');
     } catch (e) {
-      print("❌ Google Sheets error: $e");
+      print('⚠️ Firestore sync failed: $e');
+      print('📱 Event saved locally only');
     }
-    return [];
   }
-  
+
+  // === PRIVATE HELPER METHODS ===
+
+  static Future<List<EventModel>> _loadFromFirestore() async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final snapshot = await firestore
+          .collection('events')
+          .orderBy('date')
+          .limit(100)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return EventModel.fromJson(data);
+      }).toList();
+    } catch (e) {
+      print('Firestore error: $e');
+      return [];
+    }
+  }
+
   static Future<List<EventModel>> _loadFromLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(storageKey);
+
+    if (saved == null || saved.isEmpty) return [];
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString(storageKey);
-      
-      print("📱 Checking local storage...");
-      print("📱 Has data: ${saved != null}");
-      print("📱 Data length: ${saved?.length ?? 0}");
-      
-      if (saved != null && saved.isNotEmpty) {
-        final List<dynamic> decoded = jsonDecode(saved);
-        print("📱 Decoded events count: ${decoded.length}");
-        
-        final events = decoded.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
-        return events;
-      }
+      final List<dynamic> decoded = jsonDecode(saved);
+      return decoded.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
-      print("❌ Local load error: $e");
+      print('Local storage parse error: $e');
+      return [];
     }
-    return [];
   }
-  
+
+  static Future<List<EventModel>> _loadFromAssets() async {
+    try {
+      final jsonText = await rootBundle.loadString('assets/events.json');
+      final List<dynamic> data = jsonDecode(jsonText);
+      return data.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print('Assets load error: $e');
+      return [];
+    }
+  }
+
   static Future<void> _saveToLocal(List<EventModel> events) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final encoded = jsonEncode(events.map((e) => e.toJson()).toList());
       await prefs.setString(storageKey, encoded);
-      print("💾 Saved ${events.length} events locally");
-      print("💾 Data length: ${encoded.length} chars");
     } catch (e) {
-      print("❌ Local save error: $e");
+      print('Save to local error: $e');
     }
   }
-  
-  // Add event: kirim ke Google Sheets DAN simpan lokal
-  static Future<void> addEvent(EventModel newEvent, {String createdBy = "Admin"}) async {
-    print("\n" + "="*50);
-    print("➕ ADD EVENT STARTED");
-    print("="*50);
-    print("📝 Title: ${newEvent.title}");
-    print("📅 Date: ${newEvent.date}");
-    print("🏷️ Category: ${newEvent.category}");
-    print("🏢 Division: ${newEvent.division}");
-    print("📋 Description: ${newEvent.description}");
-    print("👤 Created By: $createdBy");
-    
-    // Kirim ke Google Sheets
-    if (useOnline) {
-      try {
-        print("\n🔄 Syncing to Google Sheets...");
-        print("🌐 URL: $googleScriptUrl");
-        
-        final Map<String, String> body = {
-          'action': 'addEvent',
-          'title': newEvent.title,
-          'date': newEvent.date,
-          'category': newEvent.category ?? '',
-          'division': newEvent.division ?? '',
-          'description': newEvent.description ?? '',
-          'createdBy': createdBy,
-        };
-        
-        print("📦 Request body: $body");
-        
-        final response = await http.post(
-          Uri.parse(googleScriptUrl),
-          body: body,
-        ).timeout(const Duration(seconds: 15));
-        
-        print("📡 Response status: ${response.statusCode}");
-        print("📡 Response body: ${response.body}");
-        
-        if (response.statusCode == 200) {
-          final Map<String, dynamic> responseData = jsonDecode(response.body);
-          if (responseData['success'] == true) {
-            print("✅ Event synced to Google Sheets");
-          } else {
-            print("❌ API error: ${responseData['error']}");
-          }
-        } else {
-          print("❌ HTTP error: ${response.statusCode}");
-        }
-      } catch (e) {
-        print("❌ Online sync failed: $e");
-      }
+
+  // Debug method
+  static Future<void> debugPrintData() async {
+    final events = await loadEvents();
+    print('📊 Total events: ${events.length}');
+    for (var event in events) {
+      print('  - ${event.title} (${event.date})');
     }
-    
-    // Simpan ke lokal
-    try {
-      print("\n💾 Saving to local storage...");
-      final prefs = await SharedPreferences.getInstance();
-      final current = await _loadFromLocal();
-      
-      print("📱 Current local events before: ${current.length}");
-      
-      // Check if event already exists
-      final exists = current.any((e) => 
-        e.title == newEvent.title && 
-        e.date == newEvent.date
-      );
-      
-      if (exists) {
-        print("⚠️ Event already exists locally, skipping...");
-      } else {
-        current.add(newEvent);
-        current.sort((a, b) => a.date.compareTo(b.date));
-        
-        final encoded = jsonEncode(current.map((e) => e.toJson()).toList());
-        await prefs.setString(storageKey, encoded);
-        
-        print("✅ Event saved locally");
-        print("📱 New local events count: ${current.length}");
-      }
-    } catch (e) {
-      print("❌ Local save failed: $e");
-    }
-    
-    print("="*50);
-    print("➕ ADD EVENT COMPLETED");
-    print("="*50 + "\n");
-  }
-  
-  // Refresh dengan data terbaru dari online
-  static Future<void> refreshFromOnline() async {
-    if (!useOnline) return;
-    
-    try {
-      print("🔄 Refreshing from online...");
-      final onlineEvents = await _loadFromGoogleSheets();
-      if (onlineEvents.isNotEmpty) {
-        await _saveToLocal(onlineEvents);
-        print("✅ Refresh successful");
-      } else {
-        print("ℹ️ No data from online");
-      }
-    } catch (e) {
-      print("❌ Refresh failed: $e");
-    }
-  }
-  
-  // Clear all local data (for debugging)
-  static Future<void> clearLocalData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(storageKey);
-    print("🗑️ Local data cleared");
-  }
-  
-  // Get local data count
-  static Future<int> getLocalCount() async {
-    final events = await _loadFromLocal();
-    return events.length;
   }
 }

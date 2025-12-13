@@ -2,24 +2,28 @@ name: kalender_unitas
 description: "Kalender Unitas Sistem Informasi"
 publish_to: 'none'
 
-version: 1.0.0+1  # versionCode (1) + versionName (1.0.0)
-# versi: 1.0.0 (tampil di app) +1 (build number internal)
+version: 1.0.0+1
 
 environment:
-  sdk: ^3.5.3
+  sdk: '>=3.5.3 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   intl: ^0.19.0
-  cupertino_icons: ^1.0.8
-  shared_preferences: ^2.3.2
+  cupertino_icons: ^1.0.8  # <- UBAH KE 1.0.8 (lebih stabil)
+  shared_preferences: ^2.2.2
   http: ^1.1.0
+  firebase_core: ^3.15.2
+  cloud_firestore: ^5.6.11
+  # firebase_auth: ^5.2.0  # COMMENT DULU, nanti aja
+  # google_fonts: ^6.1.0   # COMMENT DULU, nanti aja
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # flutterfire_cli: ^1.0.0  # COMMENT, ini cuma untuk development
 
 flutter:
   uses-material-design: true

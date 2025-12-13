@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/data_loader.dart';
 import '../models/event_model.dart';
 
@@ -14,6 +18,8 @@ class _HomePageState extends State<HomePage> {
   List<EventModel> _filteredEvents = [];
   Set<String> _selectedDivisions = {};
   bool _isLoading = true;
+  
+  StreamSubscription<QuerySnapshot>? _firestoreSubscription;
 
   final List<String> _availableDivisions = [
     'BPH',
@@ -27,16 +33,47 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadEvents();
-    
-    // Setup listener untuk refresh
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _setupRefreshListener();
-    });
+    _setupRealTimeListener();
   }
 
-  void _setupRefreshListener() {
-    // Listen untuk page visibility
-    // Ini cara sederhana, bisa pakai state management yang lebih baik
+  void _setupRealTimeListener() {
+    _firestoreSubscription = FirebaseFirestore.instance
+        .collection('events')
+        .orderBy('date')
+        .snapshots()
+        .listen((QuerySnapshot snapshot) {
+      final events = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return EventModel.fromJson(data);
+      }).toList();
+      
+      setState(() {
+        _events = events;
+        _filteredEvents = events;
+        _isLoading = false;
+      });
+      
+      _saveToLocal(events);
+    }, onError: (error) {
+      print('❌ Real-time listener error: $error');
+      _loadEvents();
+    });
+  }
+  
+  Future<void> _saveToLocal(List<EventModel> events) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(events.map((e) => e.toJson()).toList());
+      await prefs.setString('events_storage_v1', encoded);
+    } catch (e) {
+      print('⚠️ Error saving to local: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _firestoreSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadEvents() async {
@@ -274,6 +311,17 @@ class _HomePageState extends State<HomePage> {
                   content: Text('Data diperbarui'),
                   duration: Duration(seconds: 2),
                 ),
+              );
+            },
+          ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('events').snapshots(),
+            builder: (context, snapshot) {
+              final isConnected = snapshot.connectionState == ConnectionState.active;
+              return Icon(
+                isConnected ? Icons.cloud_done : Icons.cloud_off,
+                color: isConnected ? Colors.green : Colors.grey,
+                size: 20,
               );
             },
           ),

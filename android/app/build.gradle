@@ -2,9 +2,12 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"   // ← FIREBASE (WAJIB)
 }
 
-// TAMBAHIN INI DI ATAS android { 
+// ================================
+// LOAD FLUTTER VERSION
+// ================================
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -23,10 +26,13 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// ================================
+// ANDROID CONFIG
+// ================================
 android {
-    namespace = "com.example.kalender_unitas"
-    compileSdk 34  // GANTI: compileSdk = flutter.compileSdkVersion -> compileSdk 34
-    
+    namespace "com.unitas.kalender"   // ⬅ HARUS SAMA DENGAN applicationId
+    compileSdk 34
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -36,21 +42,22 @@ android {
         jvmTarget = '1.8'
     }
 
-    // TAMBAHIN INI:
     buildFeatures {
-        buildConfig = true
+        buildConfig true
     }
 
     defaultConfig {
-        applicationId "com.example.kalender_unitas"
+        applicationId "com.unitas.kalender"  // ⬅ FIREBASE PAKET NAME
         minSdk 21
-        targetSdk 34  // GANTI: targetSdkVersion -> targetSdk
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
     }
 
-    // TAMBAHIN SIGNING CONFIG:
+    // ================================
+    // SIGNING CONFIG (DEBUG ONLY)
+    // ================================
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -65,18 +72,23 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.debug  // Untuk testing, pake debug keystore
+            signingConfig signingConfigs.debug   // OK buat testing
             minifyEnabled false
             shrinkResources false
         }
     }
 }
 
+// ================================
+// FLUTTER
+// ================================
 flutter {
-    source = '../..'
+    source '../..'
 }
 
-// TAMBAHIN DEPENDENCIES KALO PERLU:
+// ================================
+// DEPENDENCIES
+// ================================
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation 'androidx.multidex:multidex:2.0.1'

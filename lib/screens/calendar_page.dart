@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../services/data_loader.dart';
 import 'admin_page.dart';
@@ -14,11 +16,44 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focused = DateTime.now();
   final Map<String, List<EventModel>> _eventsByDate = {};
+  
+  StreamSubscription<QuerySnapshot>? _calendarSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadEvents();
+    _setupCalendarListener();
+  }
+
+  void _setupCalendarListener() {
+    print('📅 Setting up calendar real-time listener...');
+    
+    _calendarSubscription = FirebaseFirestore.instance
+        .collection('events')
+        .snapshots()
+        .listen((QuerySnapshot snapshot) {
+      print('📅 Calendar real-time update: ${snapshot.docs.length} events');
+      
+      final events = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return EventModel.fromJson(data);
+      }).toList();
+      
+      setState(() {
+        _groupEventsByDate(events);
+      });
+      
+    }, onError: (error) {
+      print('❌ Calendar listener error: $error');
+      _loadEvents();
+    });
+  }
+
+  @override
+  void dispose() {
+    _calendarSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadEvents() async {
@@ -308,6 +343,30 @@ class _CalendarPageState extends State<CalendarPage> {
               _focused = DateTime(_focused.year, _focused.month + 1, 1);
             }),
           ),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('events').snapshots(),
+            builder: (context, snapshot) {
+              final isConnected = snapshot.connectionState == ConnectionState.active;
+              return IconButton(
+                icon: Icon(
+                  isConnected ? Icons.cloud_done : Icons.cloud_off,
+                  color: isConnected ? Colors.green : Colors.grey,
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isConnected 
+                          ? '✅ Terhubung ke server real-time' 
+                          : '⚠️ Mode offline - menggunakan data lokal',
+                      ),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         ],
       ),
       body: Column(
@@ -366,7 +425,6 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     child: Stack(
                       children: [
-                        // Tanggal
                         Positioned(
                           top: 6,
                           right: 6,
@@ -384,7 +442,6 @@ class _CalendarPageState extends State<CalendarPage> {
                           ),
                         ),
                         
-                        // Event indicator (style iOS 26)
                         if (hasEvents && dayEvents.first.division != null)
                           Positioned(
                             bottom: 6,
@@ -393,7 +450,6 @@ class _CalendarPageState extends State<CalendarPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Title event (maksimal 1 baris)
                                 if (dayEvents.first.title.isNotEmpty)
                                   Text(
                                     dayEvents.first.title.length > 12
@@ -408,7 +464,6 @@ class _CalendarPageState extends State<CalendarPage> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 
-                                // Divisi badge
                                 Container(
                                   margin: const EdgeInsets.only(top: 2),
                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -430,7 +485,6 @@ class _CalendarPageState extends State<CalendarPage> {
                                   ),
                                 ),
                                 
-                                // Jika ada lebih dari 1 event
                                 if (dayEvents.length > 1)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 2),
@@ -454,7 +508,6 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
           
-          // Legend divisi
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -490,7 +543,6 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
         ],
       ),
-      // FLOATING ACTION BUTTON UNTUK TAMBAH EVENT
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(

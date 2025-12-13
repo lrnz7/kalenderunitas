@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // TAMBAH IMPORT INI
 import '../models/event_model.dart';
 import '../services/data_loader.dart';
 
@@ -69,16 +68,13 @@ class _AdminPageState extends State<AdminPage> {
     final date = _selectedDate;
 
     if (date == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Pilih tanggal terlebih dahulu")),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Pilih tanggal terlebih dahulu")),
+      );
       return;
     }
 
-    final dateStr =
-        "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+    final dateStr = "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
 
     final newEvent = EventModel(
       title: title,
@@ -109,72 +105,59 @@ class _AdminPageState extends State<AdminPage> {
       await DataLoader.addEvent(newEvent, createdBy: "Admin");
       
       // TUTUP LOADING
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      Navigator.pop(context);
 
       // TAMPILKAN SUKSES
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: 64,
-            ),
-            content: const Text(
-              "Event berhasil ditambahkan!",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // Tutup dialog sukses
-                  _resetForm(); // Reset form
-                },
-                child: const Text('TAMBAH LAGI'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Navigasi ke main page (kalender) dengan refresh
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/main',
-                    (route) => false,
-                    arguments: true, // tetap admin
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0066CC),
-                ),
-                child: const Text('LIHAT KALENDER'),
-              ),
-            ],
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Icon(
+            Icons.check_circle,
+            color: Colors.green,
+            size: 64,
           ),
-        );
-      }
+          content: const Text(
+            "Event berhasil ditambahkan!",
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _resetForm();
+              },
+              child: const Text('TAMBAH LAGI'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Kembali ke halaman utama
+                Navigator.popUntil(context, (route) => route.isFirst);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0066CC),
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       // TUTUP LOADING JIKA ERROR
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      Navigator.pop(context);
       
       // TAMPILKAN ERROR
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal menyimpan: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   void _resetForm() {
-    _formKey.currentState!.reset();
+    _formKey.currentState?.reset();
     _titleController.clear();
     _descController.clear();
     setState(() {
@@ -182,28 +165,6 @@ class _AdminPageState extends State<AdminPage> {
       _selectedDivision = null;
       _selectedDate = null;
     });
-  }
-
-  // Debug method untuk cek local data
-  Future<void> _debugLocalData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('events_storage_v1');
-    // Untuk debug, kita tetap pakai print
-    // ignore: avoid_print
-    print("📱 Local data length: ${saved?.length ?? 0}");
-    if (saved != null) {
-      // ignore: avoid_print
-      print("📱 Local data: $saved");
-    }
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Local data: ${saved?.length ?? 0} chars"),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
   }
 
   @override
@@ -493,16 +454,6 @@ class _AdminPageState extends State<AdminPage> {
                     ],
                   ),
                 ),
-              ),
-
-              // Debug Button (optional)
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _debugLocalData,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey,
-                ),
-                child: const Text('Debug Local Data'),
               ),
             ],
           ),
