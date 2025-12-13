@@ -1,0 +1,17 @@
+[
+    {
+      "id": 1,
+      "title": "Pra-LDO divisi PSDM",
+      "date": "2026-01-10",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 2,
+      "title": "SI Belajar divisi P3M",
+      "date": "2026-01-13",
+      "division": "P3M",
+      "color": "#FF0000"
+    }
+  ]
+  

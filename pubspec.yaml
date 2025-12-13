@@ -1,0 +1,30 @@
+name: kalender_unitas
+description: "Kalender Unitas Sistem Informasi"
+publish_to: 'none'
+
+version: 1.0.0+1  # versionCode (1) + versionName (1.0.0)
+# versi: 1.0.0 (tampil di app) +1 (build number internal)
+
+environment:
+  sdk: ^3.5.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.3.2
+  http: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/events.json
+    - assets/images/logo_unitas.png
+    - assets/images/logo_unitas_white.png
