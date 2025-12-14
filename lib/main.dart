@@ -1,87 +1,97 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- TAMBAH INI
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'screens/login_page.dart';
+import 'screens/main_page.dart';
+import 'screens/admin_page.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  print('🚀 Starting Kalender Unitas...');
-  
   try {
-    // Initialize Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print('✅ Firebase initialized successfully');
-    
-    // Test Firestore connection
-    await _testFirestore();
   } catch (e) {
-    print('⚠️ Firebase initialization error: $e');
-    print('📱 Running in offline mode');
+    print('⚠️ Firebase init error: $e');
   }
   
   runApp(const MyApp());
 }
 
-// Helper function to test Firestore
-Future<void> _testFirestore() async {
-  try {
-    final firestore = FirebaseFirestore.instance;
-    await firestore.collection('app_health').doc('startup').set({
-      'app': 'Kalender Unitas',
-      'timestamp': DateTime.now().toIso8601String(),
-      'status': 'healthy',
-    });
-    print('✅ Firestore test write successful');
-  } catch (e) {
-    print('⚠️ Firestore test failed: $e');
-  }
-}
-
-// MyApp tetap sama...
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  Future<bool> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('isLoggedIn') ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Kalender Unitas SI',
       debugShowCheckedModeBanner: false,
-      title: 'Kalender Unitas Sistem Informasi',
       theme: ThemeData(
         primaryColor: const Color(0xFF0066CC),
-        colorScheme: ColorScheme.fromSwatch(
-          primarySwatch: Colors.blue,
-        ).copyWith(
-          secondary: const Color(0xFF00A86B),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0066CC),
+          primary: const Color(0xFF0066CC),
         ),
+        useMaterial3: true,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0066CC),
+          foregroundColor: Colors.white,
           centerTitle: true,
           elevation: 2,
-          iconTheme: IconThemeData(color: Colors.white),
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFF0066CC),
-          unselectedItemColor: Colors.grey,
-          type: BottomNavigationBarType.fixed,
-        ),
-        cardTheme: CardTheme(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
         ),
       ),
-      home: const SplashScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => FutureBuilder<bool>(
+          future: _checkLoginStatus(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SplashScreen();
+            }
+            
+            if (snapshot.data == true) {
+              // User sudah login, langsung ke main page
+              return FutureBuilder<Map<String, dynamic>>(
+                future: _getUserData(),
+                builder: (context, userSnapshot) {
+                  if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    return const SplashScreen();
+                  }
+                  
+                  final isAdmin = userSnapshot.data?['isAdmin'] ?? false;
+                  return MainPage(isAdmin: isAdmin);
+                },
+              );
+            } else {
+              // User belum login, tampilkan login page
+              return const LoginPage();
+            }
+          },
+        ),
+        '/login': (context) => const LoginPage(),
+        '/main': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as bool?;
+          return MainPage(isAdmin: args ?? false);
+        },
+        '/admin': (context) => const AdminPage(),
+      },
     );
+  }
+
+  Future<Map<String, dynamic>> _getUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'isAdmin': prefs.getBool('isAdmin') ?? false,
+      'isLoggedIn': prefs.getBool('isLoggedIn') ?? false,
+    };
   }
 }

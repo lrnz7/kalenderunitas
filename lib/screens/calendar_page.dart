@@ -4,10 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../services/data_loader.dart';
-import 'admin_page.dart';
 
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key});
+  final bool isAdmin;
+  
+  const CalendarPage({super.key, required this.isAdmin});
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -18,6 +19,7 @@ class _CalendarPageState extends State<CalendarPage> {
   final Map<String, List<EventModel>> _eventsByDate = {};
   
   StreamSubscription<QuerySnapshot>? _calendarSubscription;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -37,11 +39,12 @@ class _CalendarPageState extends State<CalendarPage> {
       
       final events = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return EventModel.fromJson(data);
+        return EventModel.fromJson(data).copyWith(id: doc.id);
       }).toList();
       
       setState(() {
         _groupEventsByDate(events);
+        _isLoading = false;
       });
       
     }, onError: (error) {
@@ -57,17 +60,43 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _loadEvents() async {
+    setState(() => _isLoading = true);
     final events = await DataLoader.loadEvents();
     setState(() {
       _groupEventsByDate(events);
+      _isLoading = false;
     });
   }
 
   void _groupEventsByDate(List<EventModel> events) {
     _eventsByDate.clear();
     for (var event in events) {
-      _eventsByDate.putIfAbsent(event.date, () => []).add(event);
+      // PASTIKAN: Format date konsisten (yyyy-MM-dd)
+      final dateKey = _normalizeDate(event.date);
+      _eventsByDate.putIfAbsent(dateKey, () => []).add(event);
     }
+    print('📅 Loaded ${_eventsByDate.length} dates with events');
+  }
+
+  String _normalizeDate(String dateStr) {
+    try {
+      // Format harus: yyyy-MM-dd
+      final parts = dateStr.split('-');
+      if (parts.length == 3) {
+        return '${parts[0].padLeft(4, '0')}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}';
+      }
+      
+      // Coba format lain: dd/MM/yyyy
+      if (dateStr.contains('/')) {
+        final parts2 = dateStr.split('/');
+        if (parts2.length == 3) {
+          return '${parts2[2]}-${parts2[1].padLeft(2, '0')}-${parts2[0].padLeft(2, '0')}';
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error normalizing date: $dateStr - $e');
+    }
+    return dateStr;
   }
 
   List<DateTime> _daysInMonth(DateTime date) {
@@ -76,7 +105,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final daysBefore = startWeekday - 1;
     final startDate = firstDay.subtract(Duration(days: daysBefore));
     
-    const totalDays = 42;
+    const totalDays = 42; // 6 weeks
     
     return List.generate(totalDays, (i) => startDate.add(Duration(days: i)));
   }
@@ -96,7 +125,9 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Color _getDivisionColor(String? division) {
-    switch (division?.toLowerCase()) {
+    if (division == null) return Colors.grey;
+    
+    switch (division.toLowerCase()) {
       case 'bph':
         return const Color(0xFF0066CC);
       case 'psdm':
@@ -369,193 +400,184 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            color: Colors.grey[50],
-            child: Row(
-              children: weekDays.map((day) {
-                return Expanded(
-                  child: Text(
-                    day,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: day == 'Min' ? Colors.red : Colors.grey[700],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
-                childAspectRatio: 1.1,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF0066CC),
               ),
-              itemCount: monthDays.length,
-              itemBuilder: (context, index) {
-                final day = monthDays[index];
-                final isCurrentMonth = _isCurrentMonth(day);
-                final isToday = _isToday(day);
-                final dayEvents = _getEventsForDay(day);
-                final hasEvents = dayEvents.isNotEmpty;
-
-                return GestureDetector(
-                  onTap: () => _showDayEvents(day),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: isToday
-                          ? const Color(0xFF0066CC).withOpacity(0.1)
-                          : (isCurrentMonth ? Colors.white : Colors.grey[100]),
-                      border: Border.all(
-                        color: isToday 
-                            ? const Color(0xFF0066CC) 
-                            : (isCurrentMonth ? Colors.grey.shade200 : Colors.grey.shade100),
-                        width: 1,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          top: 6,
-                          right: 6,
-                          child: Text(
-                            day.day.toString(),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: isCurrentMonth
-                                  ? (isToday
-                                      ? const Color(0xFF0066CC)
-                                      : (day.weekday == 7 ? Colors.red : Colors.black87))
-                                  : Colors.grey[400],
-                            ),
+            )
+          : Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  color: Colors.grey[50],
+                  child: Row(
+                    children: weekDays.map((day) {
+                      return Expanded(
+                        child: Text(
+                          day,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: day == 'Min' ? Colors.red : Colors.grey[700],
                           ),
                         ),
-                        
-                        if (hasEvents && dayEvents.first.division != null)
-                          Positioned(
-                            bottom: 6,
-                            left: 4,
-                            right: 4,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (dayEvents.first.title.isNotEmpty)
-                                  Text(
-                                    dayEvents.first.title.length > 12
-                                        ? '${dayEvents.first.title.substring(0, 12)}...'
-                                        : dayEvents.first.title,
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w500,
-                                      color: _getDivisionColor(dayEvents.first.division),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                
-                                Container(
-                                  margin: const EdgeInsets.only(top: 2),
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: _getDivisionColor(dayEvents.first.division).withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: _getDivisionColor(dayEvents.first.division).withOpacity(0.3),
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _getDivisionAbbreviation(dayEvents.first.division),
-                                    style: TextStyle(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                      color: _getDivisionColor(dayEvents.first.division),
-                                    ),
-                                  ),
-                                ),
-                                
-                                if (dayEvents.length > 1)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      '+${dayEvents.length - 1} more',
-                                      style: const TextStyle(
-                                        fontSize: 8,
-                                        color: Colors.grey,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: const Border(
-                top: BorderSide(color: Colors.grey, width: 0.5),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Divisi:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                      );
+                    }).toList(),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  children: [
-                    _buildLegendItem('BPH', const Color(0xFF0066CC)),
-                    _buildLegendItem('PSDM', const Color(0xFF00A86B)),
-                    _buildLegendItem('Komwira', const Color(0xFFFFD700)),
-                    _buildLegendItem('PPPM', const Color(0xFFFF0000)),
-                    _buildLegendItem('Umum', const Color(0xFF9C27B0)),
-                  ],
+                
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      mainAxisSpacing: 6,
+                      crossAxisSpacing: 6,
+                      childAspectRatio: 1.1,
+                    ),
+                    itemCount: monthDays.length,
+                    itemBuilder: (context, index) {
+                      final day = monthDays[index];
+                      final isCurrentMonth = _isCurrentMonth(day);
+                      final isToday = _isToday(day);
+                      final dayEvents = _getEventsForDay(day);
+                      final hasEvents = dayEvents.isNotEmpty;
+
+                      return GestureDetector(
+                        onTap: () => _showDayEvents(day),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: isToday
+                                ? const Color(0xFF0066CC).withOpacity(0.1)
+                                : (isCurrentMonth ? Colors.white : Colors.grey[100]),
+                            border: Border.all(
+                              color: isToday 
+                                  ? const Color(0xFF0066CC) 
+                                  : (isCurrentMonth ? Colors.grey.shade200 : Colors.grey.shade100),
+                              width: 1,
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                top: 6,
+                                right: 6,
+                                child: Text(
+                                  day.day.toString(),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: isCurrentMonth
+                                        ? (isToday
+                                            ? const Color(0xFF0066CC)
+                                            : (day.weekday == 7 ? Colors.red : Colors.black87))
+                                        : Colors.grey[400],
+                                  ),
+                                ),
+                              ),
+                              
+                              if (hasEvents && dayEvents.first.division != null)
+                                Positioned(
+                                  bottom: 6,
+                                  left: 4,
+                                  right: 4,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: _getDivisionColor(dayEvents.first.division).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: _getDivisionColor(dayEvents.first.division).withOpacity(0.3),
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _getDivisionAbbreviation(dayEvents.first.division),
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                            color: _getDivisionColor(dayEvents.first.division),
+                                          ),
+                                        ),
+                                      ),
+                                      
+                                      if (dayEvents.length > 1)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 2),
+                                          child: Text(
+                                            '+${dayEvents.length - 1} more',
+                                            style: const TextStyle(
+                                              fontSize: 8,
+                                              color: Colors.grey,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    border: const Border(
+                      top: BorderSide(color: Colors.grey, width: 0.5),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Divisi:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 6,
+                        children: [
+                          _buildLegendItem('BPH', const Color(0xFF0066CC)),
+                          _buildLegendItem('PSDM', const Color(0xFF00A86B)),
+                          _buildLegendItem('Komwira', const Color(0xFFFFD700)),
+                          _buildLegendItem('PPPM', const Color(0xFFFF0000)),
+                          _buildLegendItem('Umum', const Color(0xFF9C27B0)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AdminPage()),
-          );
-        },
-        backgroundColor: const Color(0xFF0066CC),
-        child: const Icon(Icons.add, color: Colors.white),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/admin');
+              },
+              backgroundColor: const Color(0xFF0066CC),
+              child: const Icon(Icons.add, color: Colors.white),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            )
+          : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }

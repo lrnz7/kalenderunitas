@@ -131,16 +131,16 @@ class _SplashScreenState extends State<SplashScreen>
                 style: TextStyle(
                   fontSize: 18,
                   color: Colors.white70,
-                  fontStyle: FontStyle.italic,
                 ),
               ),
 
               const SizedBox(height: 5),
               const Text(
-                'Organize • Schedule • Execute',
+                'Smart System • Smart People',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white60,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
 

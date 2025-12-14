@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'calendar_page.dart';
 import 'home_page.dart';
 import 'admin_page.dart';
+import 'login_page.dart';
 
 class MainPage extends StatefulWidget {
   final bool isAdmin;
   
-  const MainPage({super.key, this.isAdmin = true});
+  const MainPage({super.key, required this.isAdmin});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -15,13 +16,45 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
 
+  void _logout() async {
+    // Show confirmation dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Yakin ingin keluar dari aplikasi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('BATAL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // Navigate to login page
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0066CC),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('LOGOUT'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // SELALU TAMPILKAN 3 TAB
+    // PAGES BERDASARKAN ROLE
     final List<Widget> pages = [
-      const CalendarPage(),
-      const HomePage(),
-      const AdminPage(),
+      CalendarPage(isAdmin: widget.isAdmin), // PASS isAdmin ke CalendarPage
+      HomePage(isAdmin: widget.isAdmin),     // PASS isAdmin ke HomePage
+      if (widget.isAdmin) const AdminPage() else const SizedBox(),
     ];
 
     return Scaffold(
@@ -61,6 +94,30 @@ class _MainPageState extends State<MainPage> {
             bottom: Radius.circular(15),
           ),
         ),
+        actions: [
+          // Role badge
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: widget.isAdmin ? Colors.amber[700] : Colors.green,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              widget.isAdmin ? 'ADMIN' : 'USER',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _logout,
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       
       body: pages[_selectedIndex],
@@ -68,6 +125,18 @@ class _MainPageState extends State<MainPage> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
+          // Jika user non-admin mencoba akses admin tab, kembalikan ke index 0
+          if (!widget.isAdmin && index == 2) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Hanya admin yang bisa mengakses fitur ini'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          
           setState(() {
             _selectedIndex = index;
           });
@@ -78,18 +147,18 @@ class _MainPageState extends State<MainPage> {
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
         type: BottomNavigationBarType.fixed,
         elevation: 8,
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month),
             label: 'Kalender',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.list_alt),
             label: 'Event',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_outline),
-            label: 'Tambah Event',
+            icon: Icon(widget.isAdmin ? Icons.add_circle_outline : Icons.lock_outline),
+            label: widget.isAdmin ? 'Tambah Event' : 'Admin Only',
           ),
         ],
       ),
@@ -103,7 +172,7 @@ class _MainPageState extends State<MainPage> {
       case 1:
         return 'Daftar Event';
       case 2:
-        return 'Tambah Event';
+        return widget.isAdmin ? 'Tambah Event' : 'Access Denied';
       default:
         return 'Kalender Unitas';
     }

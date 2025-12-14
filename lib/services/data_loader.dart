@@ -5,16 +5,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 
 class DataLoader {
-  static const String storageKey = 'events_storage_v1';
+  static const String storageKey = 'events_storage_v3'; // Update key
   static bool _firebaseInitialized = false;
 
-  // Load events dengan fallback system
+  // Load events dengan cache
   static Future<List<EventModel>> loadEvents() async {
-    print('📱 Loading events...');
+    print('📱 Loading events with cache...');
     
     final List<EventModel> allEvents = [];
     
-    // 1. Coba dari Firestore (online)
+    // 1. Coba dari Firestore (online) - HANYA ambil data penting
     try {
       final firestoreEvents = await _loadFromFirestore();
       if (firestoreEvents.isNotEmpty) {
@@ -55,33 +55,111 @@ class DataLoader {
     return allEvents;
   }
 
-  // Add event
-  static Future<void> addEvent(EventModel newEvent, {String? createdBy}) async {
-    print('💾 Saving event: ${newEvent.title}');
+  // Optimized: Load events by date range
+  static Future<List<EventModel>> loadEventsByYear(int year) async {
+    print('📅 Loading events for year $year');
     
-    // 1. Simpan ke local (always work)
-    final prefs = await SharedPreferences.getInstance();
-    final current = await _loadFromLocal();
-    current.add(newEvent);
-    await _saveToLocal(current);
-    
-    // 2. Coba sync ke Firestore (if available)
     try {
       final firestore = FirebaseFirestore.instance;
-      await firestore.collection('events').add({
+      final startDate = '$year-01-01';
+      final endDate = '${year+1}-01-01';
+      
+      final snapshot = await firestore
+          .collection('events')
+          .where('date', isGreaterThanOrEqualTo: startDate)
+          .where('date', isLessThan: endDate)
+          .limit(100)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return EventModel.fromJson(data).copyWith(id: doc.id);
+      }).toList();
+    } catch (e) {
+      print('⚠️ Firestore yearly load failed: $e');
+      final allEvents = await loadEvents();
+      return allEvents.where((event) => event.year == year).toList();
+    }
+  }
+
+  // Add event
+  static Future<String> addEvent(EventModel newEvent, {String? createdBy}) async {
+    print('💾 Saving event: ${newEvent.title}');
+    
+    String? docId;
+    
+    // 1. Simpan ke Firestore
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final docRef = await firestore.collection('events').add({
         ...newEvent.toJson(),
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': createdBy ?? 'admin',
         'synced': true,
       });
-      print('✅ Event synced to Firestore');
+      docId = docRef.id;
+      print('✅ Event synced to Firestore with ID: $docId');
     } catch (e) {
       print('⚠️ Firestore sync failed: $e');
-      print('📱 Event saved locally only');
+      docId = 'local_${DateTime.now().millisecondsSinceEpoch}';
+    }
+    
+    // 2. Simpan ke local
+    final prefs = await SharedPreferences.getInstance();
+    final current = await _loadFromLocal();
+    final eventWithId = newEvent.copyWith(id: docId!);
+    current.add(eventWithId);
+    await _saveToLocal(current);
+    
+    return docId;
+  }
+
+  // Update event
+  static Future<void> updateEvent(String eventId, EventModel updatedEvent) async {
+    print('🔄 Updating event: ${updatedEvent.title}');
+    
+    if (!eventId.startsWith('local_')) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        await firestore.collection('events').doc(eventId).update({
+          ...updatedEvent.toJson(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        print('⚠️ Firestore update failed: $e');
+      }
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    final current = await _loadFromLocal();
+    final index = current.indexWhere((event) => event.id == eventId);
+    
+    if (index != -1) {
+      current[index] = updatedEvent.copyWith(id: eventId);
+      await _saveToLocal(current);
     }
   }
 
-  // === PRIVATE HELPER METHODS ===
+  // Delete event
+  static Future<void> deleteEvent(String eventId) async {
+    print('🗑️ Deleting event ID: $eventId');
+    
+    if (!eventId.startsWith('local_')) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        await firestore.collection('events').doc(eventId).delete();
+      } catch (e) {
+        print('⚠️ Firestore delete failed: $e');
+      }
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    final current = await _loadFromLocal();
+    current.removeWhere((event) => event.id == eventId);
+    await _saveToLocal(current);
+  }
+
+  // === PRIVATE METHODS ===
 
   static Future<List<EventModel>> _loadFromFirestore() async {
     try {
@@ -89,12 +167,12 @@ class DataLoader {
       final snapshot = await firestore
           .collection('events')
           .orderBy('date')
-          .limit(100)
+          .limit(200) // Limit untuk performance
           .get();
 
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        return EventModel.fromJson(data);
+        return EventModel.fromJson(data).copyWith(id: doc.id);
       }).toList();
     } catch (e) {
       print('Firestore error: $e');
@@ -121,7 +199,10 @@ class DataLoader {
     try {
       final jsonText = await rootBundle.loadString('assets/events.json');
       final List<dynamic> data = jsonDecode(jsonText);
-      return data.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
+      return data.map((e) {
+        final map = e as Map<String, dynamic>;
+        return EventModel.fromJson(map).copyWith(id: 'asset_${map['id'] ?? '1'}');
+      }).toList();
     } catch (e) {
       print('Assets load error: $e');
       return [];
@@ -135,15 +216,6 @@ class DataLoader {
       await prefs.setString(storageKey, encoded);
     } catch (e) {
       print('Save to local error: $e');
-    }
-  }
-
-  // Debug method
-  static Future<void> debugPrintData() async {
-    final events = await loadEvents();
-    print('📊 Total events: ${events.length}');
-    for (var event in events) {
-      print('  - ${event.title} (${event.date})');
     }
   }
 }

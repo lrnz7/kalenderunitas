@@ -1,43 +1,73 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/event_model.dart';
-import '../services/data_loader.dart';
 
-class AdminPage extends StatefulWidget {
-  const AdminPage({super.key});
+class EditEventPage extends StatefulWidget {
+  final EventModel event;
+  final Function(EventModel) onSave;
+  
+  const EditEventPage({
+    super.key,
+    required this.event,
+    required this.onSave,
+  });
 
   @override
-  State<AdminPage> createState() => _AdminPageState();
+  State<EditEventPage> createState() => _EditEventPageState();
 }
 
-class _AdminPageState extends State<AdminPage> {
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
+class _EditEventPageState extends State<EditEventPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _descController;
   final _formKey = GlobalKey<FormState>();
-
+  
   final List<String> _categories = [
-    "Akademik",
-    "Organisasi",
-    "Kampus",
-    "Event Umum",
+    "Akademik", "Organisasi", "Kampus", "Event Umum"
   ];
-
+  
   final List<String> _divisions = [
-    "BPH",
-    "PSDM",
-    "Komwira",
-    "PPPM",
-    "Umum"
+    "BPH", "PSDM", "Komwira", "PPPM", "Umum"
   ];
-
+  
   String? _selectedCategory;
   String? _selectedDivision;
   DateTime? _selectedDate;
 
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.event.title);
+    _descController = TextEditingController(text: widget.event.description ?? '');
+    _selectedCategory = widget.event.category;
+    _selectedDivision = widget.event.division;
+    
+    // Parse date from string
+    try {
+      final parts = widget.event.date.split('-');
+      if (parts.length == 3) {
+        _selectedDate = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+      }
+    } catch (e) {
+      print('Error parsing date: $e');
+      _selectedDate = DateTime.now();
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2050),
       builder: (context, child) {
@@ -52,7 +82,7 @@ class _AdminPageState extends State<AdminPage> {
         );
       },
     );
-
+    
     if (picked != null) {
       setState(() {
         _selectedDate = picked;
@@ -60,130 +90,49 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Future<void> _saveEvent() async {
+  void _saveChanges() {
     if (!_formKey.currentState!.validate()) return;
-
-    final title = _titleController.text.trim();
-    final desc = _descController.text.trim();
-    final date = _selectedDate;
-
-    if (date == null) {
+    
+    if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Pilih tanggal terlebih dahulu")),
       );
       return;
     }
-
-    final dateStr = "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-
-    final newEvent = EventModel(
-      id: 'temp_id', // Akan diganti oleh DataLoader
-      title: title,
+    
+    final dateStr = "${_selectedDate!.year.toString().padLeft(4, '0')}-"
+        "${_selectedDate!.month.toString().padLeft(2, '0')}-"
+        "${_selectedDate!.day.toString().padLeft(2, '0')}";
+    
+    final updatedEvent = widget.event.copyWith(
+      title: _titleController.text.trim(),
       date: dateStr,
       category: _selectedCategory,
       division: _selectedDivision,
-      description: desc.isNotEmpty ? desc : null,
+      description: _descController.text.trim().isNotEmpty 
+          ? _descController.text.trim() 
+          : null,
     );
-
-    // TAMPILKAN LOADING
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Menyimpan event...'),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      // SIMPAN EVENT
-      final docId = await DataLoader.addEvent(newEvent, createdBy: "Admin");
-      
-      // TUTUP LOADING
-      Navigator.pop(context);
-
-      // TAMPILKAN SUKSES
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Icon(
-            Icons.check_circle,
-            color: Colors.green,
-            size: 64,
-          ),
-          content: const Text(
-            "Event berhasil ditambahkan!",
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _resetForm();
-              },
-              child: const Text('TAMBAH LAGI'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Kembali ke halaman utama
-                Navigator.pop(context);
-                _resetForm();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0066CC),
-              ),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      // TUTUP LOADING JIKA ERROR
-      Navigator.pop(context);
-      
-      // TAMPILKAN ERROR
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _resetForm() {
-    _formKey.currentState?.reset();
-    _titleController.clear();
-    _descController.clear();
-    setState(() {
-      _selectedCategory = null;
-      _selectedDivision = null;
-      _selectedDate = null;
-    });
+    
+    widget.onSave(updatedEvent);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Tambah Event Baru"),
+        title: const Text("Edit Event"),
         centerTitle: true,
         backgroundColor: const Color(0xFF0066CC),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _resetForm,
-            tooltip: 'Reset Form',
+            icon: const Icon(Icons.save, color: Colors.white),
+            onPressed: _saveChanges,
+            tooltip: 'Simpan Perubahan',
           ),
         ],
       ),
+      
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
@@ -192,7 +141,7 @@ class _AdminPageState extends State<AdminPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Informasi Event",
+                "Edit Event",
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -201,7 +150,7 @@ class _AdminPageState extends State<AdminPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                "Isi detail event yang akan ditambahkan ke kalender",
+                "Edit detail event yang ada di kalender",
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 30),
@@ -434,7 +383,7 @@ class _AdminPageState extends State<AdminPage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _saveEvent,
+                  onPressed: _saveChanges,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0066CC),
                     shape: RoundedRectangleBorder(
@@ -447,7 +396,7 @@ class _AdminPageState extends State<AdminPage> {
                       Icon(Icons.save, color: Colors.white),
                       SizedBox(width: 12),
                       Text(
-                        "SIMPAN EVENT",
+                        "SIMPAN PERUBAHAN",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
