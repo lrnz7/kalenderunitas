@@ -11,24 +11,22 @@ dependencies:
   flutter:
     sdk: flutter
   intl: ^0.19.0
-  cupertino_icons: ^1.0.8  # <- UBAH KE 1.0.8 (lebih stabil)
+  cupertino_icons: ^1.0.8
   shared_preferences: ^2.2.2
   http: ^1.1.0
   firebase_core: ^3.15.2
   cloud_firestore: ^5.6.11
-  # firebase_auth: ^5.2.0  # COMMENT DULU, nanti aja
-  # google_fonts: ^6.1.0   # COMMENT DULU, nanti aja
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  # flutterfire_cli: ^1.0.0  # COMMENT, ini cuma untuk development
 
 flutter:
   uses-material-design: true
   
   assets:
     - assets/events.json
+    - assets/holidays.json        # ← TAMBAH INI
     - assets/images/logo_unitas.png
     - assets/images/logo_unitas_white.png

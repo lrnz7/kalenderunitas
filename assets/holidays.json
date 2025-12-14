@@ -1,0 +1,164 @@
+{
+    "tahun": 2026,
+    "negara": "Indonesia",
+    "hari_libur_nasional": [
+      {
+        "tanggal": "2026-01-01",
+        "day": "Thursday",
+        "nama": "Tahun Baru 2026 Masehi",
+        "deskripsi": "Hari pertama tahun baru kalender Masehi"
+      },
+      {
+        "tanggal": "2026-01-16",
+        "day": "Friday",
+        "nama": "Isra Mikraj Nabi Muhammad SAW",
+        "deskripsi": "Peristiwa perjalanan Isra dan Mi'raj Nabi Muhammad SAW"
+      },
+      {
+        "tanggal": "2026-02-17",
+        "day": "Tuesday",
+        "nama": "Tahun Baru Imlek 2577 Kongzili",
+        "deskripsi": "Tahun baru Cina berdasarkan penanggalan lunar"
+      },
+      {
+        "tanggal": "2026-03-19",
+        "day": "Thursday",
+        "nama": "Hari Suci Nyepi (Tahun Baru Saka 1948)",
+        "deskripsi": "Hari Suci Nyepi umat Hindu, tradisi diam dan refleksi"
+      },
+      {
+        "tanggal": "2026-03-21",
+        "day": "Saturday",
+        "nama": "Hari Raya Idul Fitri 1447 H",
+        "deskripsi": "Hari Raya Lebaran, akhir puasa Ramadan"
+      },
+      {
+        "tanggal": "2026-03-22",
+        "day": "Sunday",
+        "nama": "Hari Raya Idul Fitri 1447 H",
+        "deskripsi": "Hari kedua Hari Raya Idul Fitri"
+      },
+      {
+        "tanggal": "2026-04-03",
+        "day": "Friday",
+        "nama": "Wafat Yesus Kristus",
+        "deskripsi": "Peringatan wafatnya Yesus (Good Friday)"
+      },
+      {
+        "tanggal": "2026-04-05",
+        "day": "Sunday",
+        "nama": "Kebangkitan Yesus Kristus (Paskah)",
+        "deskripsi": "Peringatan kebangkitan Yesus dari kematian"
+      },
+      {
+        "tanggal": "2026-05-01",
+        "day": "Friday",
+        "nama": "Hari Buruh Internasional",
+        "deskripsi": "Perayaan Hari Buruh sedunia"
+      },
+      {
+        "tanggal": "2026-05-14",
+        "day": "Thursday",
+        "nama": "Kenaikan Yesus Kristus",
+        "deskripsi": "Peringatan kenaikan Yesus setelah kebangkitan"
+      },
+      {
+        "tanggal": "2026-05-27",
+        "day": "Wednesday",
+        "nama": "Hari Raya Idul Adha 1447 H",
+        "deskripsi": "Hari Raya Qurban umat Islam"
+      },
+      {
+        "tanggal": "2026-05-31",
+        "day": "Sunday",
+        "nama": "Hari Raya Waisak 2570 BE",
+        "deskripsi": "Hari suci umat Buddha"
+      },
+      {
+        "tanggal": "2026-06-01",
+        "day": "Monday",
+        "nama": "Hari Lahir Pancasila",
+        "deskripsi": "Peringatan lahirnya dasar negara Pancasila"
+      },
+      {
+        "tanggal": "2026-06-16",
+        "day": "Tuesday",
+        "nama": "1 Muharam Tahun Baru Islam 1448 H",
+        "deskripsi": "Tahun baru Islam"
+      },
+      {
+        "tanggal": "2026-08-17",
+        "day": "Monday",
+        "nama": "Proklamasi Kemerdekaan RI",
+        "deskripsi": "Hari ulang tahun kemerdekaan Indonesia"
+      },
+      {
+        "tanggal": "2026-08-25",
+        "day": "Tuesday",
+        "nama": "Maulid Nabi Muhammad SAW",
+        "deskripsi": "Peringatan kelahiran Nabi Muhammad SAW"
+      },
+      {
+        "tanggal": "2026-12-25",
+        "day": "Friday",
+        "nama": "Hari Raya Natal",
+        "deskripsi": "Peringatan Kelahiran Yesus Kristus"
+      }
+    ],
+    "cuti_bersama": [
+      {
+        "tanggal": "2026-02-16",
+        "day": "Monday",
+        "nama": "Cuti Bersama Tahun Baru Imlek",
+        "deskripsi": "Cuti bersama menyambut Tahun Baru Imlek"
+      },
+      {
+        "tanggal": "2026-03-18",
+        "day": "Wednesday",
+        "nama": "Cuti Bersama Hari Suci Nyepi",
+        "deskripsi": "Cuti bersama menjelang Hari Suci Nyepi"
+      },
+      {
+        "tanggal": "2026-03-20",
+        "day": "Friday",
+        "nama": "Cuti Bersama Idul Fitri 1447 H",
+        "deskripsi": "Cuti bersama sebelum libur Idul Fitri"
+      },
+      {
+        "tanggal": "2026-03-23",
+        "day": "Monday",
+        "nama": "Cuti Bersama Idul Fitri 1447 H",
+        "deskripsi": "Lanjutan cuti bersama setelah Hari Raya Idul Fitri"
+      },
+      {
+        "tanggal": "2026-03-24",
+        "day": "Tuesday",
+        "nama": "Cuti Bersama Idul Fitri 1447 H",
+        "deskripsi": "Lanjutan cuti bersama setelah Hari Raya Idul Fitri"
+      },
+      {
+        "tanggal": "2026-05-15",
+        "day": "Friday",
+        "nama": "Cuti Bersama Kenaikan Yesus Kristus",
+        "deskripsi": "Cuti bersama Hari Kenaikan Yesus Kristus"
+      },
+      {
+        "tanggal": "2026-05-28",
+        "day": "Thursday",
+        "nama": "Cuti Bersama Idul Adha 1447 H",
+        "deskripsi": "Cuti bersama bertepatan dengan Idul Adha"
+      },
+      {
+        "tanggal": "2026-12-24",
+        "day": "Thursday",
+        "nama": "Cuti Bersama Hari Raya Natal",
+        "deskripsi": "Cuti bersama menjelang Hari Natal"
+      }
+    ],
+    "catatan": {
+      "total_libur_nasional": 17,
+      "total_cuti_bersama": 8,
+      "total_hari": 25,
+      "sumber": "SKB Tiga Menteri RI tentang Hari Libur Nasional dan Cuti Bersama 2026"
+    }
+  }

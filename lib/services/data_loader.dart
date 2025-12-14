@@ -3,26 +3,28 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
+import '../models/holiday_model.dart';
 
 class DataLoader {
-  static const String storageKey = 'events_storage_v3'; // Update key
-  static bool _firebaseInitialized = false;
+  static const String eventsStorageKey = 'events_storage_v3';
+  static const String holidaysStorageKey = 'holidays_storage_v1';
 
-  // Load events dengan cache
+  // ==================== EVENTS ====================
+  
   static Future<List<EventModel>> loadEvents() async {
-    print('📱 Loading events with cache...');
+    print('📱 Loading events...');
     
     final List<EventModel> allEvents = [];
     
-    // 1. Coba dari Firestore (online) - HANYA ambil data penting
+    // 1. Coba dari Firestore (online)
     try {
-      final firestoreEvents = await _loadFromFirestore();
+      final firestoreEvents = await _loadEventsFromFirestore();
       if (firestoreEvents.isNotEmpty) {
         allEvents.addAll(firestoreEvents);
         print('✅ Loaded ${firestoreEvents.length} events from Firestore');
         
         // Simpan ke local untuk offline
-        await _saveToLocal(allEvents);
+        await _saveEventsToLocal(allEvents);
         return allEvents;
       }
     } catch (e) {
@@ -31,7 +33,7 @@ class DataLoader {
     
     // 2. Coba dari local storage
     try {
-      final localEvents = await _loadFromLocal();
+      final localEvents = await _loadEventsFromLocal();
       if (localEvents.isNotEmpty) {
         allEvents.addAll(localEvents);
         print('📱 Loaded ${localEvents.length} events from local storage');
@@ -43,10 +45,10 @@ class DataLoader {
     // 3. Fallback ke assets
     if (allEvents.isEmpty) {
       try {
-        final assetEvents = await _loadFromAssets();
+        final assetEvents = await _loadEventsFromAssets();
         allEvents.addAll(assetEvents);
         print('📦 Loaded ${assetEvents.length} events from assets');
-        await _saveToLocal(allEvents);
+        await _saveEventsToLocal(allEvents);
       } catch (e) {
         print('⚠️ Assets load failed: $e');
       }
@@ -55,20 +57,48 @@ class DataLoader {
     return allEvents;
   }
 
-  // Optimized: Load events by date range
-  static Future<List<EventModel>> loadEventsByYear(int year) async {
-    print('📅 Loading events for year $year');
+  // ==================== HOLIDAYS ====================
+  
+  static Future<List<HolidayModel>> loadHolidays() async {
+    print('🎉 Loading holidays...');
     
+    final List<HolidayModel> allHolidays = [];
+    
+    // 1. Coba dari local storage (cached)
+    try {
+      final localHolidays = await _loadHolidaysFromLocal();
+      if (localHolidays.isNotEmpty) {
+        allHolidays.addAll(localHolidays);
+        print('📱 Loaded ${localHolidays.length} holidays from local storage');
+        return allHolidays;
+      }
+    } catch (e) {
+      print('⚠️ Local holidays load failed: $e');
+    }
+    
+    // 2. Load dari assets (JSON)
+    try {
+      final assetHolidays = await _loadHolidaysFromAssets();
+      allHolidays.addAll(assetHolidays);
+      print('🎊 Loaded ${assetHolidays.length} holidays from assets');
+      await _saveHolidaysToLocal(allHolidays);
+    } catch (e) {
+      print('⚠️ Assets holidays load failed: $e');
+    }
+    
+    return allHolidays;
+  }
+
+  // ==================== PRIVATE METHODS ====================
+
+  // --- EVENTS ---
+  static Future<List<EventModel>> _loadEventsFromFirestore() async {
     try {
       final firestore = FirebaseFirestore.instance;
-      final startDate = '$year-01-01';
-      final endDate = '${year+1}-01-01';
-      
       final snapshot = await firestore
           .collection('events')
-          .where('date', isGreaterThanOrEqualTo: startDate)
-          .where('date', isLessThan: endDate)
-          .limit(100)
+          .orderBy('date')
+          .limit(200)
           .get();
 
       return snapshot.docs.map((doc) {
@@ -76,19 +106,122 @@ class DataLoader {
         return EventModel.fromJson(data).copyWith(id: doc.id);
       }).toList();
     } catch (e) {
-      print('⚠️ Firestore yearly load failed: $e');
-      final allEvents = await loadEvents();
-      return allEvents.where((event) => event.year == year).toList();
+      print('Firestore error: $e');
+      return [];
     }
   }
 
+  static Future<List<EventModel>> _loadEventsFromLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(eventsStorageKey);
+
+    if (saved == null || saved.isEmpty) return [];
+
+    try {
+      final List<dynamic> decoded = jsonDecode(saved);
+      return decoded.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print('Local storage parse error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<EventModel>> _loadEventsFromAssets() async {
+    try {
+      final jsonText = await rootBundle.loadString('assets/events.json');
+      final List<dynamic> data = jsonDecode(jsonText);
+      return data.map((e) {
+        final map = e as Map<String, dynamic>;
+        return EventModel.fromJson(map).copyWith(id: 'asset_${map['id'] ?? '1'}');
+      }).toList();
+    } catch (e) {
+      print('Assets load error: $e');
+      return [];
+    }
+  }
+
+  static Future<void> _saveEventsToLocal(List<EventModel> events) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(events.map((e) => e.toJson()).toList());
+      await prefs.setString(eventsStorageKey, encoded);
+    } catch (e) {
+      print('Save to local error: $e');
+    }
+  }
+
+  // --- HOLIDAYS ---
+  static Future<List<HolidayModel>> _loadHolidaysFromLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(holidaysStorageKey);
+
+    if (saved == null || saved.isEmpty) return [];
+
+    try {
+      final List<dynamic> decoded = jsonDecode(saved);
+      return decoded.map((e) => HolidayModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      print('Local holidays parse error: $e');
+      return [];
+    }
+  }
+
+  static Future<List<HolidayModel>> _loadHolidaysFromAssets() async {
+    try {
+      final jsonText = await rootBundle.loadString('assets/holidays.json');
+      final Map<String, dynamic> data = jsonDecode(jsonText);
+      
+      final List<HolidayModel> holidays = [];
+      
+      // Process hari_libur_nasional
+      final List<dynamic> nationalHolidays = data['hari_libur_nasional'] ?? [];
+      for (var holiday in nationalHolidays) {
+        final Map<String, dynamic> holidayMap = holiday as Map<String, dynamic>;
+        holidays.add(HolidayModel(
+          date: holidayMap['tanggal'] ?? '',
+          title: holidayMap['nama'] ?? '',
+          description: holidayMap['deskripsi'] ?? '',
+          type: 'national',
+        ));
+      }
+      
+      // Process cuti_bersama
+      final List<dynamic> jointHolidays = data['cuti_bersama'] ?? [];
+      for (var holiday in jointHolidays) {
+        final Map<String, dynamic> holidayMap = holiday as Map<String, dynamic>;
+        holidays.add(HolidayModel(
+          date: holidayMap['tanggal'] ?? '',
+          title: holidayMap['nama'] ?? '',
+          description: holidayMap['deskripsi'] ?? '',
+          type: 'cuti_bersama',
+        ));
+      }
+      
+      return holidays;
+    } catch (e) {
+      print('Assets holidays load error: $e');
+      return [];
+    }
+  }
+
+  static Future<void> _saveHolidaysToLocal(List<HolidayModel> holidays) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(holidays.map((e) => e.toJson()).toList());
+      await prefs.setString(holidaysStorageKey, encoded);
+    } catch (e) {
+      print('Save holidays to local error: $e');
+    }
+  }
+
+  // ==================== CRUD OPERATIONS ====================
+  
   // Add event
   static Future<String> addEvent(EventModel newEvent, {String? createdBy}) async {
     print('💾 Saving event: ${newEvent.title}');
     
     String? docId;
     
-    // 1. Simpan ke Firestore
     try {
       final firestore = FirebaseFirestore.instance;
       final docRef = await firestore.collection('events').add({
@@ -104,12 +237,11 @@ class DataLoader {
       docId = 'local_${DateTime.now().millisecondsSinceEpoch}';
     }
     
-    // 2. Simpan ke local
     final prefs = await SharedPreferences.getInstance();
-    final current = await _loadFromLocal();
+    final current = await _loadEventsFromLocal();
     final eventWithId = newEvent.copyWith(id: docId!);
     current.add(eventWithId);
-    await _saveToLocal(current);
+    await _saveEventsToLocal(current);
     
     return docId;
   }
@@ -131,12 +263,12 @@ class DataLoader {
     }
     
     final prefs = await SharedPreferences.getInstance();
-    final current = await _loadFromLocal();
+    final current = await _loadEventsFromLocal();
     final index = current.indexWhere((event) => event.id == eventId);
     
     if (index != -1) {
       current[index] = updatedEvent.copyWith(id: eventId);
-      await _saveToLocal(current);
+      await _saveEventsToLocal(current);
     }
   }
 
@@ -154,68 +286,17 @@ class DataLoader {
     }
     
     final prefs = await SharedPreferences.getInstance();
-    final current = await _loadFromLocal();
+    final current = await _loadEventsFromLocal();
     current.removeWhere((event) => event.id == eventId);
-    await _saveToLocal(current);
+    await _saveEventsToLocal(current);
   }
 
-  // === PRIVATE METHODS ===
-
-  static Future<List<EventModel>> _loadFromFirestore() async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      final snapshot = await firestore
-          .collection('events')
-          .orderBy('date')
-          .limit(200) // Limit untuk performance
-          .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return EventModel.fromJson(data).copyWith(id: doc.id);
-      }).toList();
-    } catch (e) {
-      print('Firestore error: $e');
-      return [];
-    }
-  }
-
-  static Future<List<EventModel>> _loadFromLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(storageKey);
-
-    if (saved == null || saved.isEmpty) return [];
-
-    try {
-      final List<dynamic> decoded = jsonDecode(saved);
-      return decoded.map((e) => EventModel.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      print('Local storage parse error: $e');
-      return [];
-    }
-  }
-
-  static Future<List<EventModel>> _loadFromAssets() async {
-    try {
-      final jsonText = await rootBundle.loadString('assets/events.json');
-      final List<dynamic> data = jsonDecode(jsonText);
-      return data.map((e) {
-        final map = e as Map<String, dynamic>;
-        return EventModel.fromJson(map).copyWith(id: 'asset_${map['id'] ?? '1'}');
-      }).toList();
-    } catch (e) {
-      print('Assets load error: $e');
-      return [];
-    }
-  }
-
-  static Future<void> _saveToLocal(List<EventModel> events) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final encoded = jsonEncode(events.map((e) => e.toJson()).toList());
-      await prefs.setString(storageKey, encoded);
-    } catch (e) {
-      print('Save to local error: $e');
-    }
+  // Debug method
+  static Future<void> debugPrintData() async {
+    final events = await loadEvents();
+    final holidays = await loadHolidays();
+    
+    print('📊 Total events: ${events.length}');
+    print('🎉 Total holidays: ${holidays.length}');
   }
 }

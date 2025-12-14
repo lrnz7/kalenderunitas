@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
+import '../models/holiday_model.dart';
 import '../services/data_loader.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -17,25 +18,46 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focused = DateTime.now();
   final Map<String, List<EventModel>> _eventsByDate = {};
+  final Map<String, List<HolidayModel>> _holidaysByDate = {};
   
   StreamSubscription<QuerySnapshot>? _calendarSubscription;
   bool _isLoading = true;
+  bool _showHolidays = true;
 
   @override
   void initState() {
     super.initState();
-    _loadEvents();
+    _loadData();
     _setupCalendarListener();
   }
 
-  void _setupCalendarListener() {
-    print('📅 Setting up calendar real-time listener...');
+  void _loadData() async {
+    setState(() => _isLoading = true);
     
+    final events = await DataLoader.loadEvents();
+    final holidays = await DataLoader.loadHolidays();
+    
+    setState(() {
+      _groupEventsByDate(events);
+      _groupHolidaysByDate(holidays);
+      _isLoading = false;
+    });
+  }
+
+  void _groupHolidaysByDate(List<HolidayModel> holidays) {
+    _holidaysByDate.clear();
+    for (var holiday in holidays) {
+      final dateKey = _normalizeDate(holiday.date);
+      _holidaysByDate.putIfAbsent(dateKey, () => []).add(holiday);
+    }
+    print('🎉 Loaded ${_holidaysByDate.length} dates with holidays');
+  }
+
+  void _setupCalendarListener() {
     _calendarSubscription = FirebaseFirestore.instance
         .collection('events')
         .snapshots()
         .listen((QuerySnapshot snapshot) {
-      print('📅 Calendar real-time update: ${snapshot.docs.length} events');
       
       final events = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
@@ -44,12 +66,11 @@ class _CalendarPageState extends State<CalendarPage> {
       
       setState(() {
         _groupEventsByDate(events);
-        _isLoading = false;
       });
       
     }, onError: (error) {
       print('❌ Calendar listener error: $error');
-      _loadEvents();
+      _loadData();
     });
   }
 
@@ -59,34 +80,21 @@ class _CalendarPageState extends State<CalendarPage> {
     super.dispose();
   }
 
-  Future<void> _loadEvents() async {
-    setState(() => _isLoading = true);
-    final events = await DataLoader.loadEvents();
-    setState(() {
-      _groupEventsByDate(events);
-      _isLoading = false;
-    });
-  }
-
   void _groupEventsByDate(List<EventModel> events) {
     _eventsByDate.clear();
     for (var event in events) {
-      // PASTIKAN: Format date konsisten (yyyy-MM-dd)
       final dateKey = _normalizeDate(event.date);
       _eventsByDate.putIfAbsent(dateKey, () => []).add(event);
     }
-    print('📅 Loaded ${_eventsByDate.length} dates with events');
   }
 
   String _normalizeDate(String dateStr) {
     try {
-      // Format harus: yyyy-MM-dd
       final parts = dateStr.split('-');
       if (parts.length == 3) {
         return '${parts[0].padLeft(4, '0')}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}';
       }
       
-      // Coba format lain: dd/MM/yyyy
       if (dateStr.contains('/')) {
         final parts2 = dateStr.split('/');
         if (parts2.length == 3) {
@@ -105,7 +113,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final daysBefore = startWeekday - 1;
     final startDate = firstDay.subtract(Duration(days: daysBefore));
     
-    const totalDays = 42; // 6 weeks
+    const totalDays = 42;
     
     return List.generate(totalDays, (i) => startDate.add(Duration(days: i)));
   }
@@ -122,6 +130,12 @@ class _CalendarPageState extends State<CalendarPage> {
   List<EventModel> _getEventsForDay(DateTime day) {
     final key = DateFormat('yyyy-MM-dd').format(day);
     return _eventsByDate[key] ?? [];
+  }
+
+  List<HolidayModel> _getHolidaysForDay(DateTime day) {
+    if (!_showHolidays) return [];
+    final key = DateFormat('yyyy-MM-dd').format(day);
+    return _holidaysByDate[key] ?? [];
   }
 
   Color _getDivisionColor(String? division) {
@@ -159,6 +173,296 @@ class _CalendarPageState extends State<CalendarPage> {
       default:
         return division.length > 3 ? division.substring(0, 3).toUpperCase() : division.toUpperCase();
     }
+  }
+
+  Widget _buildDayCell(DateTime day, DateTime currentMonth) {
+    final isCurrentMonth = _isCurrentMonth(day);
+    final isToday = _isToday(day);
+    final dayEvents = _getEventsForDay(day);
+    final dayHolidays = _getHolidaysForDay(day);
+    final hasEvents = dayEvents.isNotEmpty;
+    final hasHoliday = dayHolidays.isNotEmpty;
+    
+    final HolidayModel? holiday = hasHoliday ? dayHolidays.first : null;
+
+    return GestureDetector(
+      onTap: () => _showDayEvents(day),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: isToday
+              ? const Color(0xFF0066CC).withOpacity(0.1)
+              : (isCurrentMonth ? Colors.white : Colors.grey[100]!),
+          border: Border.all(
+            color: isToday 
+                ? const Color(0xFF0066CC) 
+                : (hasHoliday && _showHolidays 
+                    ? holiday!.color.withOpacity(0.3) 
+                    : (isCurrentMonth ? Colors.grey.shade200 : Colors.grey.shade100)),
+            width: 1.5,
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Day Number (top right)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Text(
+                day.day.toString(),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isCurrentMonth
+                      ? (isToday
+                          ? const Color(0xFF0066CC)
+                          : (hasHoliday && _showHolidays
+                              ? holiday!.color
+                              : (day.weekday == 7 ? Colors.red : Colors.black87)))
+                      : Colors.grey[400],
+                ),
+              ),
+            ),
+            
+            // HOLIDAY DISPLAY - CENTER (NEW!)
+            if (hasHoliday && _showHolidays)
+              Positioned(
+                top: 18,
+                left: 0,
+                right: 0,
+                child: Column(
+                  children: [
+                    // Holiday icon
+                    Icon(
+                      holiday!.icon,
+                      size: 16,
+                      color: holiday.color,
+                    ),
+                    const SizedBox(height: 2),
+                    // Short holiday name
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Text(
+                        holiday.shortName,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: holiday.color,
+                          height: 1.0,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+            ),
+            
+            // EVENT DISPLAY - BOTTOM
+            if (hasEvents && (!hasHoliday || !_showHolidays))
+              Positioned(
+                bottom: 4,
+                left: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: _getDivisionColor(dayEvents.first.division).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _getDivisionColor(dayEvents.first.division).withOpacity(0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    _getDivisionAbbreviation(dayEvents.first.division),
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      color: _getDivisionColor(dayEvents.first.division),
+                    ),
+                  ),
+                ),
+            ),
+            
+            // Jika ada BOTH holiday dan event
+            if (hasEvents && hasHoliday && _showHolidays)
+              Positioned(
+                bottom: 2,
+                left: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: _getDivisionColor(dayEvents.first.division).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(
+                      color: _getDivisionColor(dayEvents.first.division).withOpacity(0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    _getDivisionAbbreviation(dayEvents.first.division),
+                    style: TextStyle(
+                      fontSize: 7,
+                      fontWeight: FontWeight.bold,
+                      color: _getDivisionColor(dayEvents.first.division),
+                    ),
+                  ),
+                ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDayEvents(DateTime day) {
+    final events = _getEventsForDay(day);
+    final holidays = _getHolidaysForDay(day);
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            color: Colors.white,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                DateFormat('EEEE, d MMMM yyyy').format(day),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0066CC),
+                ),
+              ),
+              
+              // Tampilkan info holiday jika ada
+              if (holidays.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (var holiday in holidays)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: holiday.color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: holiday.color.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(holiday.icon, color: holiday.color, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                holiday.title,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: holiday.color,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                holiday.description,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                holiday.type == 'national' ? 'Libur Nasional' : 'Cuti Bersama',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: holiday.color,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              
+              const SizedBox(height: 16),
+              
+              if (events.isEmpty && holidays.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Text(
+                      'Tidak ada event atau hari libur',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else if (events.isNotEmpty)
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: events.length,
+                    itemBuilder: (context, index) {
+                      final event = events[index];
+                      final divisionColor = _getDivisionColor(event.division);
+                      
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: Container(
+                            width: 8,
+                            decoration: BoxDecoration(
+                              color: divisionColor,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          title: Text(
+                            event.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (event.division != null)
+                                Text('Divisi: ${event.division}'),
+                              if (event.category != null)
+                                Text('Kategori: ${event.category}'),
+                            ],
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _showEventDetail(event),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _showEventDetail(EventModel event) {
@@ -239,102 +543,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  void _showDayEvents(DateTime day) {
-    final events = _getEventsForDay(day);
-    
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            color: Colors.white,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Text(
-                DateFormat('EEEE, d MMMM yyyy').format(day),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0066CC),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (events.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Text(
-                      'Tidak ada event',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: events.length,
-                    itemBuilder: (context, index) {
-                      final event = events[index];
-                      final divisionColor = _getDivisionColor(event.division);
-                      
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: Container(
-                            width: 8,
-                            decoration: BoxDecoration(
-                              color: divisionColor,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          title: Text(
-                            event.title,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (event.division != null)
-                                Text('Divisi: ${event.division}'),
-                              if (event.category != null)
-                                Text('Kategori: ${event.category}'),
-                            ],
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showEventDetail(event);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final monthDays = _daysInMonth(_focused);
@@ -362,6 +570,19 @@ class _CalendarPageState extends State<CalendarPage> {
           },
         ),
         actions: [
+          // Toggle holiday display
+          IconButton(
+            icon: Icon(
+              _showHolidays ? Icons.flag : Icons.flag_outlined,
+              color: _showHolidays ? Colors.yellow : Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _showHolidays = !_showHolidays;
+              });
+            },
+            tooltip: 'Tampilkan hari libur',
+          ),
           IconButton(
             icon: const Icon(Icons.chevron_left, color: Colors.white),
             onPressed: () => setState(() {
@@ -440,93 +661,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     itemCount: monthDays.length,
                     itemBuilder: (context, index) {
                       final day = monthDays[index];
-                      final isCurrentMonth = _isCurrentMonth(day);
-                      final isToday = _isToday(day);
-                      final dayEvents = _getEventsForDay(day);
-                      final hasEvents = dayEvents.isNotEmpty;
-
-                      return GestureDetector(
-                        onTap: () => _showDayEvents(day),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: isToday
-                                ? const Color(0xFF0066CC).withOpacity(0.1)
-                                : (isCurrentMonth ? Colors.white : Colors.grey[100]),
-                            border: Border.all(
-                              color: isToday 
-                                  ? const Color(0xFF0066CC) 
-                                  : (isCurrentMonth ? Colors.grey.shade200 : Colors.grey.shade100),
-                              width: 1,
-                            ),
-                          ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                top: 6,
-                                right: 6,
-                                child: Text(
-                                  day.day.toString(),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: isCurrentMonth
-                                        ? (isToday
-                                            ? const Color(0xFF0066CC)
-                                            : (day.weekday == 7 ? Colors.red : Colors.black87))
-                                        : Colors.grey[400],
-                                  ),
-                                ),
-                              ),
-                              
-                              if (hasEvents && dayEvents.first.division != null)
-                                Positioned(
-                                  bottom: 6,
-                                  left: 4,
-                                  right: 4,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 2),
-                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: _getDivisionColor(dayEvents.first.division).withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(
-                                            color: _getDivisionColor(dayEvents.first.division).withOpacity(0.3),
-                                            width: 0.5,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _getDivisionAbbreviation(dayEvents.first.division),
-                                          style: TextStyle(
-                                            fontSize: 8,
-                                            fontWeight: FontWeight.bold,
-                                            color: _getDivisionColor(dayEvents.first.division),
-                                          ),
-                                        ),
-                                      ),
-                                      
-                                      if (dayEvents.length > 1)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 2),
-                                          child: Text(
-                                            '+${dayEvents.length - 1} more',
-                                            style: const TextStyle(
-                                              fontSize: 8,
-                                              color: Colors.grey,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
+                      return _buildDayCell(day, _focused);
                     },
                   ),
                 ),
@@ -543,7 +678,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Divisi:',
+                        'Legenda:',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -551,7 +686,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       ),
                       const SizedBox(height: 8),
                       Wrap(
-                        spacing: 12,
+                        spacing: 8,
                         runSpacing: 6,
                         children: [
                           _buildLegendItem('BPH', const Color(0xFF0066CC)),
@@ -559,7 +694,19 @@ class _CalendarPageState extends State<CalendarPage> {
                           _buildLegendItem('Komwira', const Color(0xFFFFD700)),
                           _buildLegendItem('PPPM', const Color(0xFFFF0000)),
                           _buildLegendItem('Umum', const Color(0xFF9C27B0)),
+                          if (_showHolidays) ...[
+                            _buildLegendItem('Libur Nasional', Colors.red),
+                            _buildLegendItem('Cuti Bersama', Colors.orange),
+                          ],
                         ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Total: ${_eventsByDate.length} event, ${_holidaysByDate.length} hari libur',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -607,7 +754,6 @@ class _CalendarPageState extends State<CalendarPage> {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
             ),
           ),
         ],
