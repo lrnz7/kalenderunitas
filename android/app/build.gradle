@@ -30,8 +30,8 @@ if (flutterVersionName == null) {
 // ANDROID CONFIG
 // ================================
 android {
-    namespace "com.unitas.kalender"   // ⬅ HARUS SAMA DENGAN applicationId
     compileSdk 34
+    namespace "com.unitas.kalender"  // ← LINE YANG HARUS DITAMBAH!
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
