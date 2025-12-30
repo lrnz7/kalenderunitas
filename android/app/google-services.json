@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "527596875858",
+    "project_id": "kalender-unitas",
+    "storage_bucket": "kalender-unitas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:527596875858:android:2794c3b273783ffc6faf8b",
+        "android_client_info": {
+          "package_name": "com.unitas.kalender"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLgx-y4EQRUlm_YkRcK9jJH1c7pkTkWm4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

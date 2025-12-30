@@ -1,0 +1,81 @@
+[
+    {
+      "id": 1,
+      "title": "Sesi Interview Cakader divisi PSDM",
+      "date": "2026-01-26",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 2,
+      "title": "Welcoming Session divisi PSDM",
+      "date": "2026-01-28",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 3,
+      "title": "Pra-LDO (Plan A) divisi PSDM",
+      "date": "2026-02-09",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 4,
+      "title": "Technical Meeting LDO (Plan A) divisi PSDM",
+      "date": "2026-02-11",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 5,
+      "title": "LDO (Plan A) divisi PSDM",
+      "date": "2026-02-14",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 6,
+      "title": "Pra-LDO (Plan B) divisi PSDM",
+      "date": "2026-03-29",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 7,
+      "title": "Technical Meeting LDO (Plan B) divisi PSDM",
+      "date": "2026-04-08",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 8,
+      "title": "LDO (Plan B) divisi PSDM",
+      "date": "2026-04-11",
+      "division": "PSDM",
+      "color": "#00A86B"
+    },
+    {
+      "id": 9,
+      "title": "SI Belajar divisi P3M",
+      "date": "2026-01-13",
+      "division": "P3M",
+      "color": "#FF0000"
+    },
+    {
+      "id": 10,
+      "title": "Rapat Divisi Unitas",
+      "date": "2026-01-20",
+      "division": "Unitas SI",
+      "color": "#00BCD4"
+    },
+    {
+      "id": 999,
+      "title": "Verifikasi Berkas Cakoor",
+      "startDate": "2025-07-24",
+      "endDate": "2025-07-30",
+      "division": "Umum",
+      "color": "#8A2BE2"
+    }
+  ]
+  
