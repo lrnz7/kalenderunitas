@@ -9,17 +9,32 @@ import '../shared/utils/helpers.dart';
 
 class CalendarPage extends StatefulWidget {
   final bool isAdmin;
+  // Optional test injection for lightweight visual validation
+  final List<EventModel>? testEvents;
+  final List<HolidayModel>? testHolidays;
+  // When true, skip the realtime Firestore connection used only for the small
+  // connection-status indicator in the AppBar. Useful for widget tests.
+  final bool disableRealtimeIndicator;
 
-  const CalendarPage({super.key, required this.isAdmin});
+  const CalendarPage(
+      {super.key,
+      required this.isAdmin,
+      this.testEvents,
+      this.testHolidays,
+      this.disableRealtimeIndicator = false});
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
 }
 
-class _CalendarPageState extends State<CalendarPage> {
+class _CalendarPageState extends State<CalendarPage>
+    with TickerProviderStateMixin {
   DateTime _focused = DateTime.now();
   // -1 = backward, 1 = forward, 0 = none/initial
   int _monthChangeDirection = 0;
+  // Guard to avoid overlapping month-change animations during rapid input
+  bool _isAnimatingMonthChange = false;
+  late final AnimationController _monthTransitionController;
   final Map<String, List<EventModel>> _eventsByDate = {};
   final Map<String, List<HolidayModel>> _holidaysByDate = {};
 
@@ -30,8 +45,33 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _setupCalendarListener();
+
+    // Controller tied to the visible transition duration so the lock is
+    // driven by actual animation lifecycle rather than an external timer.
+    _monthTransitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() {
+            _isAnimatingMonthChange = false;
+            _monthChangeDirection = 0;
+          });
+        }
+      });
+
+    // Test injection path: if test data is provided, use it and skip
+    // the async loader/listener for deterministic widget tests.
+    if (widget.testEvents != null || widget.testHolidays != null) {
+      setState(() {
+        _groupEventsByDate(widget.testEvents ?? []);
+        _groupHolidaysByDate(widget.testHolidays ?? []);
+        _isLoading = false;
+      });
+    } else {
+      _loadData();
+      _setupCalendarListener();
+    }
   }
 
   void _loadData() async {
@@ -78,6 +118,7 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void dispose() {
     _calendarSubscription?.cancel();
+    _monthTransitionController.dispose();
     super.dispose();
   }
 
@@ -192,31 +233,35 @@ class _CalendarPageState extends State<CalendarPage> {
       right: Radius.circular(isEnd ? 6 : 0),
     );
 
-    return Container(
-      height: 14,
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha((0.18 * 255).round()),
-        borderRadius: borderRadius,
-        border:
-            Border.all(color: color.withAlpha((0.4 * 255).round()), width: 0.6),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: isStart
-              ? Text(
-                  DivisionUtils.displayName(event.division),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                )
-              : const SizedBox.shrink(),
+    return Tooltip(
+      message: DivisionUtils.displayName(event.division),
+      child: InkWell(
+        onLongPress: () => _showDayEvents(day),
+        child: Container(
+          height: 18,
+          margin: const EdgeInsets.only(bottom: 6),
+          decoration: BoxDecoration(
+            color: color.withAlpha((0.18 * 255).round()),
+            borderRadius: borderRadius,
+            border: Border.all(
+                color: color.withAlpha((0.4 * 255).round()), width: 0.6),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                DivisionUtils.displayName(event.division),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -255,12 +300,12 @@ class _CalendarPageState extends State<CalendarPage> {
           children: [
             // Day Number (top right)
             Positioned(
-              top: 4,
-              right: 4,
+              top: 8,
+              right: 8,
               child: Text(
                 day.day.toString(),
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: isCurrentMonth
                       ? (isToday
@@ -278,7 +323,7 @@ class _CalendarPageState extends State<CalendarPage> {
             // HOLIDAY DISPLAY - CENTER (NEW!)
             if (hasHoliday && _showHolidays)
               Positioned(
-                top: 18,
+                top: 26,
                 left: 0,
                 right: 0,
                 child: Column(
@@ -313,9 +358,9 @@ class _CalendarPageState extends State<CalendarPage> {
             // EVENT DISPLAY - BOTTOM (support multi-day series indicator)
             if (hasEvents && (!hasHoliday || !_showHolidays))
               Positioned(
-                bottom: 4,
-                left: 4,
-                right: 4,
+                bottom: 8,
+                left: 6,
+                right: 6,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -338,16 +383,16 @@ class _CalendarPageState extends State<CalendarPage> {
             // Jika ada BOTH holiday dan event
             if (hasEvents && hasHoliday && _showHolidays)
               Positioned(
-                bottom: 2,
-                left: 4,
-                right: 4,
+                bottom: 6,
+                left: 6,
+                right: 6,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _getDivisionColor(dayEvents.first.division)
                         .withAlpha((0.15 * 255).round()),
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: _getDivisionColor(dayEvents.first.division)
                           .withAlpha((0.3 * 255).round()),
@@ -357,7 +402,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   child: Text(
                     _getDivisionAbbreviation(dayEvents.first.division),
                     style: TextStyle(
-                      fontSize: 7,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                       color: _getDivisionColor(dayEvents.first.division),
                     ),
@@ -650,17 +695,12 @@ class _CalendarPageState extends State<CalendarPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.calendar_today, color: Colors.white),
-          onPressed: () {
-            setState(() {
-              final newFocused = DateTime.now();
-              final newMonthFocused =
-                  DateTime(newFocused.year, newFocused.month, 1);
-              _monthChangeDirection = newMonthFocused.isAfter(_focused)
-                  ? 1
-                  : (newMonthFocused.isBefore(_focused) ? -1 : 0);
-              _focused = newMonthFocused;
-            });
-          },
+          onPressed: _isAnimatingMonthChange
+              ? null
+              : () {
+                  final newFocused = DateTime.now();
+                  _beginMonthTransition(newFocused);
+                },
         ),
         actions: [
           // Toggle holiday display
@@ -720,17 +760,15 @@ class _CalendarPageState extends State<CalendarPage> {
                               color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      onChanged: (m) {
-                        if (m != null) {
-                          setState(() {
-                            final newFocused = DateTime(_focused.year, m, 1);
-                            _monthChangeDirection = newFocused.isAfter(_focused)
-                                ? 1
-                                : (newFocused.isBefore(_focused) ? -1 : 0);
-                            _focused = newFocused;
-                          });
-                        }
-                      },
+                      onChanged: _isAnimatingMonthChange
+                          ? null
+                          : (m) {
+                              if (m != null) {
+                                final newFocused =
+                                    DateTime(_focused.year, m, 1);
+                                _beginMonthTransition(newFocused);
+                              }
+                            },
                     ),
                   ),
                 ),
@@ -779,17 +817,15 @@ class _CalendarPageState extends State<CalendarPage> {
                             ),
                         ];
                       },
-                      onChanged: (y) {
-                        if (y != null) {
-                          setState(() {
-                            final newFocused = DateTime(y, _focused.month, 1);
-                            _monthChangeDirection = newFocused.isAfter(_focused)
-                                ? 1
-                                : (newFocused.isBefore(_focused) ? -1 : 0);
-                            _focused = newFocused;
-                          });
-                        }
-                      },
+                      onChanged: _isAnimatingMonthChange
+                          ? null
+                          : (y) {
+                              if (y != null) {
+                                final newFocused =
+                                    DateTime(y, _focused.month, 1);
+                                _beginMonthTransition(newFocused);
+                              }
+                            },
                     ),
                   ),
                 ),
@@ -798,43 +834,56 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
           IconButton(
             icon: const Icon(Icons.chevron_left, color: Colors.white),
-            onPressed: () => setState(() {
-              _monthChangeDirection = -1;
-              _focused = DateTime(_focused.year, _focused.month - 1, 1);
-            }),
+            onPressed: _isAnimatingMonthChange
+                ? null
+                : () {
+                    final newFocused =
+                        DateTime(_focused.year, _focused.month - 1, 1);
+                    _beginMonthTransition(newFocused);
+                  },
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right, color: Colors.white),
-            onPressed: () => setState(() {
-              _monthChangeDirection = 1;
-              _focused = DateTime(_focused.year, _focused.month + 1, 1);
-            }),
+            onPressed: _isAnimatingMonthChange
+                ? null
+                : () {
+                    final newFocused =
+                        DateTime(_focused.year, _focused.month + 1, 1);
+                    _beginMonthTransition(newFocused);
+                  },
           ),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('events').snapshots(),
-            builder: (context, snapshot) {
-              final isConnected =
-                  snapshot.connectionState == ConnectionState.active;
-              return IconButton(
-                icon: Icon(
-                  isConnected ? Icons.cloud_done : Icons.cloud_off,
-                  color: isConnected ? Colors.green : Colors.grey,
-                ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        isConnected
-                            ? '✅ Terhubung ke server real-time'
-                            : '⚠️ Mode offline - menggunakan data lokal',
+          widget.disableRealtimeIndicator
+              ? IconButton(
+                  icon: const Icon(Icons.cloud_done, color: Colors.green),
+                  onPressed: () {},
+                )
+              : StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('events')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final isConnected =
+                        snapshot.connectionState == ConnectionState.active;
+                    return IconButton(
+                      icon: Icon(
+                        isConnected ? Icons.cloud_done : Icons.cloud_off,
+                        color: isConnected ? Colors.green : Colors.grey,
                       ),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isConnected
+                                  ? '✅ Terhubung ke server real-time'
+                                  : '⚠️ Mode offline - menggunakan data lokal',
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
         ],
       ),
       body: _isLoading
@@ -866,38 +915,71 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
                 Expanded(
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (child, animation) {
-                      final beginOffset = Offset(
-                          (_monthChangeDirection == 0
-                              ? 0
-                              : _monthChangeDirection.toDouble() * 0.3),
-                          0);
-                      final offsetAnim = animation.drive(
-                          Tween<Offset>(begin: beginOffset, end: Offset.zero)
-                              .chain(CurveTween(curve: Curves.easeOut)));
-                      return SlideTransition(
-                          position: offsetAnim,
-                          child:
-                              FadeTransition(opacity: animation, child: child));
+                    duration: const Duration(milliseconds: 320),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeOutCubic,
+                    layoutBuilder:
+                        (Widget? currentChild, List<Widget> previousChildren) {
+                      return Stack(
+                        clipBehavior: Clip.hardEdge,
+                        children: [
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
                     },
-                    child: GridView.builder(
-                      key: ValueKey('${_focused.year}-${_focused.month}'),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 7,
-                        mainAxisSpacing: 6,
-                        crossAxisSpacing: 6,
-                        childAspectRatio: 1.1,
-                      ),
-                      itemCount: monthDays.length,
-                      itemBuilder: (context, index) {
-                        final day = monthDays[index];
-                        return _buildDayCell(day, _focused);
-                      },
-                    ),
+                    transitionBuilder: (child, animation) {
+                      // Compute direction and distance
+                      final dx = (_monthChangeDirection == 0
+                          ? 0.0
+                          : _monthChangeDirection.toDouble() * 0.20);
+
+                      final newKey =
+                          ValueKey('${_focused.year}-${_focused.month}');
+                      final isIncoming = child.key == newKey;
+
+                      if (isIncoming) {
+                        // Incoming: slide from dx -> 0 and fade from 0.95 -> 1.0
+                        final offsetIn = animation.drive(
+                          Tween<Offset>(begin: Offset(dx, 0), end: Offset.zero)
+                              .chain(CurveTween(curve: Curves.easeOutCubic)),
+                        );
+                        final fadeIn = animation.drive(
+                          Tween<double>(begin: 0.95, end: 1.0)
+                              .chain(CurveTween(curve: Curves.easeOutCubic)),
+                        );
+
+                        return RepaintBoundary(
+                          child: ClipRect(
+                            child: SlideTransition(
+                                position: offsetIn,
+                                child: FadeTransition(
+                                    opacity: fadeIn, child: child)),
+                          ),
+                        );
+                      } else {
+                        // Outgoing: subtly slide out in the opposite direction
+                        final offsetOut = ReverseAnimation(animation).drive(
+                          Tween<Offset>(
+                                  begin: Offset.zero, end: Offset(-dx * 0.6, 0))
+                              .chain(CurveTween(curve: Curves.easeOutCubic)),
+                        );
+                        final fadeOut = ReverseAnimation(animation).drive(
+                          Tween<double>(begin: 1.0, end: 0.0)
+                              .chain(CurveTween(curve: Curves.easeOutCubic)),
+                        );
+
+                        return RepaintBoundary(
+                          child: ClipRect(
+                            child: SlideTransition(
+                                position: offsetOut,
+                                child: FadeTransition(
+                                    opacity: fadeOut, child: child)),
+                          ),
+                        );
+                      }
+                    },
+                    child: _buildMonthGrid(monthDays),
                   ),
                 ),
                 Container(
@@ -996,5 +1078,45 @@ class _CalendarPageState extends State<CalendarPage> {
         ],
       ),
     );
+  }
+
+  // Isolate month grid into a separate method so each month has a stable
+  // widget instance during transitions. This minimizes mid-animation rebuilds.
+  Widget _buildMonthGrid(List<DateTime> monthDays) {
+    return GridView.builder(
+      key: ValueKey('${_focused.year}-${_focused.month}'),
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: monthDays.length,
+      itemBuilder: (context, index) {
+        final day = monthDays[index];
+        return _buildDayCell(day, _focused);
+      },
+    );
+  }
+
+  // Begin a month transition driven by the controller so the lock is tied to
+  // actual animation completion instead of a timer.
+  void _beginMonthTransition(DateTime newFocused) {
+    if (_isAnimatingMonthChange) return;
+
+    // Ignore no-op changes
+    if (newFocused.year == _focused.year && newFocused.month == _focused.month)
+      return;
+
+    setState(() {
+      _isAnimatingMonthChange = true;
+      _monthChangeDirection = newFocused.isAfter(_focused) ? 1 : -1;
+      _focused = newFocused;
+    });
+
+    // Start the controller-driven guard
+    _monthTransitionController.forward(from: 0.0);
   }
 }

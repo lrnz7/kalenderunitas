@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "F:\\flutter_windows_3.24.3-stable\\flutter\\packages\\flutter_tools\\gradle\\src\\main\\scripts\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\loren\\AppData\\Local\\Android\\sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "E:\\Games\\kalenderunitas\\kalender_fix\\android\\app\\.cxx\\release\\1t1f38nq\\x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\loren\\AppData\\Local\\Android\\sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "E:\\Games\\kalenderunitas\\kalender_fix\\android\\app\\.cxx\\release\\1t1f38nq\\x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}

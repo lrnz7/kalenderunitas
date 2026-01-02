@@ -30,8 +30,10 @@ if (flutterVersionName == null) {
 // ANDROID CONFIG
 // ================================
 android {
-    compileSdk 34
     namespace "com.unitas.kalender"  // ← LINE YANG HARUS DITAMBAH!
+    compileSdk 36
+    
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -48,8 +50,8 @@ android {
 
     defaultConfig {
         applicationId "com.unitas.kalender"  // ⬅ FIREBASE PAKET NAME
-        minSdk 21
-        targetSdk 34
+        minSdkVersion flutter.minSdkVersion
+        targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -58,15 +60,6 @@ android {
     // ================================
     // SIGNING CONFIG (DEBUG ONLY)
     // ================================
-    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-    }
-
     buildTypes {
         debug {
             signingConfig signingConfigs.debug

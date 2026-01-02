@@ -1,0 +1,2 @@
+E:/Games/kalenderunitas/kalender_fix/android/app/.cxx/release/1t1f38nq/armeabi-v7a/CMakeFiles/edit_cache.dir
+E:/Games/kalenderunitas/kalender_fix/android/app/.cxx/release/1t1f38nq/armeabi-v7a/CMakeFiles/rebuild_cache.dir
