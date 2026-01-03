@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_page.dart';
 import 'screens/main_page.dart';
+export 'screens/main_page.dart';
 import 'screens/admin_page.dart';
 
 void main() {

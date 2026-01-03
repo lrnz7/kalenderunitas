@@ -15,10 +15,11 @@ void main() {
 
   testWidgets('Calendar page loads', (WidgetTester tester) async {
     // Render MainPage directly to avoid waiting on app-level futures
-    await tester.pumpWidget(const MaterialApp(home: MainPage(isAdmin: false)));
+    await tester.pumpWidget(const MaterialApp(
+        home: MainPage(isAdmin: false, disableRealtimeIndicator: true)));
 
-    // Allow frame to build
-    await tester.pumpAndSettle();
+    // Allow a single frame to build (avoid pumpAndSettle timeouts in CI)
+    await tester.pump();
 
     // Should find calendar label in bottom nav
     expect(find.text('Kalender'), findsOneWidget);

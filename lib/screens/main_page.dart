@@ -6,8 +6,12 @@ import 'login_page.dart';
 
 class MainPage extends StatefulWidget {
   final bool isAdmin;
-  
-  const MainPage({super.key, required this.isAdmin});
+  final bool disableRealtimeIndicator;
+
+  const MainPage(
+      {super.key,
+      required this.isAdmin,
+      this.disableRealtimeIndicator = false});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -52,8 +56,11 @@ class _MainPageState extends State<MainPage> {
   Widget build(BuildContext context) {
     // PAGES BERDASARKAN ROLE
     final List<Widget> pages = [
-      CalendarPage(isAdmin: widget.isAdmin), // PASS isAdmin ke CalendarPage
-      HomePage(isAdmin: widget.isAdmin),     // PASS isAdmin ke HomePage
+      CalendarPage(
+          isAdmin: widget.isAdmin,
+          disableRealtimeIndicator:
+              widget.disableRealtimeIndicator), // PASS isAdmin ke CalendarPage
+      HomePage(isAdmin: widget.isAdmin), // PASS isAdmin ke HomePage
       if (widget.isAdmin) const AdminPage() else const SizedBox(),
     ];
 
@@ -119,9 +126,7 @@ class _MainPageState extends State<MainPage> {
           ),
         ],
       ),
-      
       body: pages[_selectedIndex],
-      
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
@@ -136,7 +141,7 @@ class _MainPageState extends State<MainPage> {
             );
             return;
           }
-          
+
           setState(() {
             _selectedIndex = index;
           });
@@ -157,7 +162,8 @@ class _MainPageState extends State<MainPage> {
             label: 'Event',
           ),
           BottomNavigationBarItem(
-            icon: Icon(widget.isAdmin ? Icons.add_circle_outline : Icons.lock_outline),
+            icon: Icon(
+                widget.isAdmin ? Icons.add_circle_outline : Icons.lock_outline),
             label: widget.isAdmin ? 'Tambah Event' : 'Admin Only',
           ),
         ],

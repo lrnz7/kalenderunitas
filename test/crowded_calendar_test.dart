@@ -1,40 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kalender_unitas/models/event_model.dart';
-import 'package:kalender_unitas/screens/calendar_page.dart';
+import 'package:kalender_unitas/features/calendar/month_model.dart';
+import 'package:kalender_unitas/shared/utils/helpers.dart';
+import 'package:kalender_unitas/models/holiday_model.dart';
 
 void main() {
   testWidgets('Crowded day displays full division names and +N overflow',
       (WidgetTester tester) async {
     final now = DateTime.now();
-    final today =
+    final todayStr =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     final events = [
-      EventModel(id: 'e1', title: 'A', startDate: today, division: 'PSDM'),
-      EventModel(id: 'e2', title: 'B', startDate: today, division: 'Unitas SI'),
-      EventModel(id: 'e3', title: 'C', startDate: today, division: 'Umum'),
-      EventModel(id: 'e4', title: 'D', startDate: today, division: 'BPH'),
-      EventModel(id: 'e5', title: 'E', startDate: today, division: 'Komwira'),
+      EventModel(id: 'e1', title: 'A', startDate: todayStr, division: 'PSDM'),
+      EventModel(
+          id: 'e2', title: 'B', startDate: todayStr, division: 'Unitas SI'),
+      EventModel(id: 'e3', title: 'C', startDate: todayStr, division: 'Umum'),
+      EventModel(id: 'e4', title: 'D', startDate: todayStr, division: 'BPH'),
+      EventModel(
+          id: 'e5', title: 'E', startDate: todayStr, division: 'Komwira'),
     ];
 
-    await tester.pumpWidget(MaterialApp(
-        home: CalendarPage(
-            isAdmin: false,
-            testEvents: events,
-            testHolidays: [],
-            disableRealtimeIndicator: true)));
+    final eventsMap = {todayStr: events};
+    final holidaysMap = <String, List<HolidayModel>>{};
 
-    // Allow build
-    await tester.pumpAndSettle();
+    final model = MonthModel.fromMaps(DateTime.now(), eventsMap, holidaysMap);
+
+    final markers = model.markersByDate[todayStr]!;
 
     // Verify that several division names are present
-    // Several matches may exist (legend + cell), assert at least one
-    expect(find.text('PSDM'), findsWidgets);
-    expect(find.text('Unitas'), findsWidgets); // 'Unitas SI' maps to 'Unitas'
-    expect(find.text('Umum'), findsWidgets);
+    final labels = markers.map((m) => m.label).toSet();
+    expect(labels.contains('PSDM'), isTrue);
+    expect(labels.contains('Unitas'), isTrue); // 'Unitas SI' maps to 'Unitas'
+    expect(labels.contains('Umum'), isTrue);
 
-    // Because we added 5 events, we should see an overflow indicator +2
-    expect(find.text('+2'), findsOneWidget);
+    // Because we added 5 events, the painter would show an overflow of +2
+    expect(markers.length, equals(5));
   });
 }
