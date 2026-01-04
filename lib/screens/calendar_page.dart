@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../models/holiday_model.dart';
@@ -42,6 +43,14 @@ class _CalendarPageState extends State<CalendarPage> {
   // This acts as a lightweight determinism lock: while true we ignore new inputs
   // and avoid queuing or overlapping transitions.
   bool _isAnimatingMonthChange = false;
+
+  // UI constants for navbar spacing and sizing — keep these in one place to
+  // ensure visual consistency across touch targets and screen sizes.
+  static const double _navIconSize = 20.0;
+  static const EdgeInsets _navItemPadding =
+      EdgeInsets.symmetric(horizontal: 10.0);
+  static const double _navMinButtonSize = 44.0;
+  static const double _navSpacing = 8.0;
 
   // PageView controller with the middle page as the current month.
   // Rationale: keep a fixed 3-page carousel (prev/current/next) so only three
@@ -701,23 +710,8 @@ class _CalendarPageState extends State<CalendarPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              DateFormat('MMMM yyyy').format(_focused).toUpperCase(),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 18,
-              ),
-            ),
-            // Expose a plain month name (invisible) for widget tests that look for
-            // the non-uppercased month string while keeping visual unchanged
-            Opacity(
-                opacity: 0.0, child: Text(DateFormat.MMMM().format(_focused))),
-          ],
-        ),
+        // No month/year label displayed here per design — keep the AppBar clean
+        title: const SizedBox.shrink(),
         centerTitle: true,
         backgroundColor: const Color(0xFF0066CC),
         elevation: 0,
@@ -731,160 +725,183 @@ class _CalendarPageState extends State<CalendarPage> {
                 },
         ),
         actions: [
-          // Toggle holiday display
-          IconButton(
-            icon: Icon(
-              _showHolidays ? Icons.flag : Icons.flag_outlined,
-              color: _showHolidays ? Colors.yellow : Colors.white,
+          // Toggle holiday display (wrap in Padding for uniform spacing)
+          Padding(
+            padding: _navItemPadding,
+            child: IconButton(
+              icon: Icon(
+                _showHolidays ? Icons.flag : Icons.flag_outlined,
+                color: _showHolidays ? Colors.yellow : Colors.white,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                  minWidth: _navMinButtonSize, minHeight: _navMinButtonSize),
+              iconSize: _navIconSize,
+              onPressed: () {
+                setState(() {
+                  _showHolidays = !_showHolidays;
+                });
+              },
+              tooltip: 'Tampilkan hari libur',
             ),
-            onPressed: () {
-              setState(() {
-                _showHolidays = !_showHolidays;
-              });
-            },
-            tooltip: 'Tampilkan hari libur',
           ),
-          // Inline month & year selector (compact)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Theme(
-                  data: Theme.of(context).copyWith(
-                    highlightColor: Colors.transparent,
-                    splashColor: Colors.transparent,
-                    hoverColor: Colors.transparent,
-                    focusColor: Colors.transparent,
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      key: const Key('month_dropdown'),
-                      value: _focused.month,
-                      dropdownColor: Colors.white,
-                      iconEnabledColor: Colors.white,
-                      isDense: true,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
-                      items: List.generate(12, (i) => i + 1)
-                          .map((m) => DropdownMenuItem(
-                                value: m,
-                                child: Text(
-                                  DateFormat.MMMM().format(DateTime(2000, m)),
-                                  style: const TextStyle(
-                                    color: Color(0xFF0066CC),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ))
-                          .toList(),
-                      selectedItemBuilder: (context) => List.generate(
-                        12,
-                        (i) => Text(
-                          DateFormat.MMM()
-                              .format(DateTime(2000, i + 1))
-                              .toUpperCase(),
-                          style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      onChanged: _isAnimatingMonthChange
-                          ? null
-                          : (m) {
-                              if (m != null) {
-                                final newFocused =
-                                    DateTime(_focused.year, m, 1);
-                                _requestMonthChange(newFocused);
-                              }
-                            },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Theme(
-                  data: Theme.of(context).copyWith(
-                    highlightColor: Colors.transparent,
-                    splashColor: Colors.transparent,
-                    hoverColor: Colors.transparent,
-                    focusColor: Colors.transparent,
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      value: _focused.year,
-                      dropdownColor: Colors.white,
-                      iconEnabledColor: Colors.white,
-                      isDense: true,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
-                      items: [
-                        for (var y = _getYearBounds()['min']!;
-                            y <= _getYearBounds()['max']!;
-                            y++)
-                          y
-                      ]
-                          .map((y) => DropdownMenuItem(
-                                value: y,
-                                child: Text(
-                                  y.toString(),
-                                  style: const TextStyle(
-                                    color: Color(0xFF0066CC),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ))
-                          .toList(),
-                      selectedItemBuilder: (context) {
-                        final bounds = _getYearBounds();
-                        return [
-                          for (var y = bounds['min']!; y <= bounds['max']!; y++)
-                            Text(
-                              y.toString(),
+          // Group prev / month / next with consistent spacing
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: _navSpacing),
+            child: IconButton(
+              key: const Key('prev_button'),
+              icon: const Icon(Icons.chevron_left, color: Colors.white),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                  minWidth: _navMinButtonSize, minHeight: _navMinButtonSize),
+              iconSize: _navIconSize,
+              onPressed: _isAnimatingMonthChange
+                  ? null
+                  : () {
+                      final newFocused =
+                          DateTime(_focused.year, _focused.month - 1, 1);
+                      _requestMonthChange(newFocused);
+                    },
+            ),
+          ),
+
+          // Month dropdown (fixed min width so it aligns with icons)
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 120),
+            child: Center(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  key: const Key('month_dropdown'),
+                  value: _focused.month,
+                  dropdownColor: Colors.white,
+                  iconEnabledColor: Colors.white,
+                  isDense: true,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                  items: List.generate(12, (i) => i + 1)
+                      .map((m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              DateFormat.MMMM().format(DateTime(2000, m)),
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold),
+                                color: Color(0xFF0066CC),
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                        ];
-                      },
-                      onChanged: _isAnimatingMonthChange
-                          ? null
-                          : (y) {
-                              if (y != null) {
-                                final newFocused =
-                                    DateTime(y, _focused.month, 1);
-                                _requestMonthChange(newFocused);
-                              }
-                            },
+                          ))
+                      .toList(),
+                  selectedItemBuilder: (context) => List.generate(
+                    12,
+                    (i) => Center(
+                      child: Text(
+                        DateFormat.MMMM()
+                            .format(DateTime(2000, i + 1))
+                            .toUpperCase(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14),
+                      ),
                     ),
                   ),
+                  onChanged: _isAnimatingMonthChange
+                      ? null
+                      : (m) {
+                          if (m != null) {
+                            final newFocused = DateTime(_focused.year, m, 1);
+                            _requestMonthChange(newFocused);
+                          }
+                        },
                 ),
-              ],
+              ),
             ),
           ),
-          IconButton(
-            key: const Key('prev_button'),
-            icon: const Icon(Icons.chevron_left, color: Colors.white),
-            onPressed: _isAnimatingMonthChange
-                ? null
-                : () {
-                    final newFocused =
-                        DateTime(_focused.year, _focused.month - 1, 1);
-                    _requestMonthChange(newFocused);
-                  },
+
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: _navSpacing),
+            child: IconButton(
+              key: const Key('next_button'),
+              icon: const Icon(Icons.chevron_right, color: Colors.white),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                  minWidth: _navMinButtonSize, minHeight: _navMinButtonSize),
+              iconSize: _navIconSize,
+              onPressed: _isAnimatingMonthChange
+                  ? null
+                  : () {
+                      final newFocused =
+                          DateTime(_focused.year, _focused.month + 1, 1);
+                      _requestMonthChange(newFocused);
+                    },
+            ),
           ),
-          IconButton(
-            key: const Key('next_button'),
-            icon: const Icon(Icons.chevron_right, color: Colors.white),
-            onPressed: _isAnimatingMonthChange
-                ? null
-                : () {
-                    final newFocused =
-                        DateTime(_focused.year, _focused.month + 1, 1);
-                    _requestMonthChange(newFocused);
-                  },
+          const SizedBox(width: 6),
+          Theme(
+            data: Theme.of(context).copyWith(
+              highlightColor: Colors.transparent,
+              splashColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _focused.year,
+                dropdownColor: Colors.white,
+                iconEnabledColor: Colors.white,
+                isDense: true,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+                items: [
+                  for (var y = _getYearBounds()['min']!;
+                      y <= _getYearBounds()['max']!;
+                      y++)
+                    y
+                ]
+                    .map((y) => DropdownMenuItem(
+                          value: y,
+                          child: Text(
+                            y.toString(),
+                            style: const TextStyle(
+                              color: Color(0xFF0066CC),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+                selectedItemBuilder: (context) {
+                  final bounds = _getYearBounds();
+                  return [
+                    for (var y = bounds['min']!; y <= bounds['max']!; y++)
+                      Text(
+                        y.toString(),
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                  ];
+                },
+                onChanged: _isAnimatingMonthChange
+                    ? null
+                    : (y) {
+                        if (y != null) {
+                          final newFocused = DateTime(y, _focused.month, 1);
+                          _requestMonthChange(newFocused);
+                        }
+                      },
+              ),
+            ),
           ),
           widget.disableRealtimeIndicator
-              ? IconButton(
-                  icon: const Icon(Icons.cloud_done, color: Colors.green),
-                  onPressed: () {},
+              ? Padding(
+                  padding: _navItemPadding,
+                  child: IconButton(
+                    icon: const Icon(Icons.cloud_done, color: Colors.green),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                        minWidth: _navMinButtonSize,
+                        minHeight: _navMinButtonSize),
+                    iconSize: _navIconSize,
+                    onPressed: () {},
+                  ),
                 )
               : StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -893,23 +910,31 @@ class _CalendarPageState extends State<CalendarPage> {
                   builder: (context, snapshot) {
                     final isConnected =
                         snapshot.connectionState == ConnectionState.active;
-                    return IconButton(
-                      icon: Icon(
-                        isConnected ? Icons.cloud_done : Icons.cloud_off,
-                        color: isConnected ? Colors.green : Colors.grey,
-                      ),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              isConnected
-                                  ? '✅ Terhubung ke server real-time'
-                                  : '⚠️ Mode offline - menggunakan data lokal',
+                    return Padding(
+                      padding: _navItemPadding,
+                      child: IconButton(
+                        icon: Icon(
+                          isConnected ? Icons.cloud_done : Icons.cloud_off,
+                          color: isConnected ? Colors.green : Colors.grey,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                            minWidth: _navMinButtonSize,
+                            minHeight: _navMinButtonSize),
+                        iconSize: _navIconSize,
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isConnected
+                                    ? '✅ Terhubung ke server real-time'
+                                    : '⚠️ Mode offline - menggunakan data lokal',
+                              ),
+                              duration: const Duration(seconds: 2),
                             ),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -1011,15 +1036,6 @@ class _CalendarPageState extends State<CalendarPage> {
                           color: Colors.grey,
                         ),
                       ),
-                      if (widget.isAdmin)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            key: const Key('tambah_event_text'),
-                            onPressed: _openCreateEvent,
-                            child: const Text('Tambah Event'),
-                          ),
-                        ),
                     ],
                   ),
                 ),

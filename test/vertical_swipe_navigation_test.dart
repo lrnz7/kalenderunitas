@@ -35,12 +35,12 @@ void main() {
 
     // Detect which month is now visible (could be prev, next, or unchanged)
     String afterFirst;
-    if (find.text(nextMonthText).evaluate().isNotEmpty) {
-      afterFirst = nextMonthText;
-    } else if (find.text(prevMonthText).evaluate().isNotEmpty) {
-      afterFirst = prevMonthText;
+    if (find.text(nextMonthText.toUpperCase()).evaluate().isNotEmpty) {
+      afterFirst = nextMonthText.toUpperCase();
+    } else if (find.text(prevMonthText.toUpperCase()).evaluate().isNotEmpty) {
+      afterFirst = prevMonthText.toUpperCase();
     } else {
-      afterFirst = startMonthText;
+      afterFirst = startMonthText.toUpperCase();
     }
 
     debugPrint('After first fling visible month: $afterFirst');
@@ -57,9 +57,9 @@ void main() {
 
     // Determine final month relative shift (-1, 0, or +1)
     int finalShift = 0;
-    if (find.text(nextMonthText).evaluate().isNotEmpty) {
+    if (find.text(nextMonthText.toUpperCase()).evaluate().isNotEmpty) {
       finalShift = 1;
-    } else if (find.text(prevMonthText).evaluate().isNotEmpty) {
+    } else if (find.text(prevMonthText.toUpperCase()).evaluate().isNotEmpty) {
       finalShift = -1;
     } else {
       finalShift = 0;
@@ -88,7 +88,7 @@ void main() {
     final now = DateTime.now();
     final startMonth = DateTime(now.year, now.month, 1);
     final prevMonth = DateTime(startMonth.year, startMonth.month - 1, 1);
-    final prevMonthText = DateFormat.MMMM().format(prevMonth);
+    final prevMonthText = DateFormat.MMMM().format(prevMonth).toUpperCase();
 
     // A controlled fling downwards should navigate to the previous month.
     await tester.fling(pageFinder, const Offset(0, 400), 1200);
@@ -113,8 +113,9 @@ void main() {
     final pageFinder = find.byType(MonthView);
 
     final now = DateTime.now();
-    final startMonthText =
-        DateFormat.MMMM().format(DateTime(now.year, now.month, 1));
+    final startMonthText = DateFormat.MMMM()
+        .format(DateTime(now.year, now.month, 1))
+        .toUpperCase();
 
     // Start a gesture dragging up but then reverse back down before release.
     final gesture = await tester.startGesture(tester.getCenter(pageFinder));
@@ -151,14 +152,16 @@ void main() {
       focused = DateTime(focused.year, focused.month + 1, 1);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
-      expect(find.text(DateFormat.MMMM().format(focused)), findsOneWidget);
+      expect(find.text(DateFormat.MMMM().format(focused).toUpperCase()),
+          findsOneWidget);
 
       // fling down to previous
       await tester.fling(pageFinder, const Offset(0, 600), 2500);
       focused = DateTime(focused.year, focused.month - 1, 1);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
-      expect(find.text(DateFormat.MMMM().format(focused)), findsOneWidget);
+      expect(find.text(DateFormat.MMMM().format(focused).toUpperCase()),
+          findsOneWidget);
     }
   });
 }

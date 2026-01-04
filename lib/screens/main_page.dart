@@ -96,10 +96,9 @@ class _MainPageState extends State<MainPage> {
         centerTitle: true,
         backgroundColor: const Color(0xFF0066CC),
         elevation: 3,
+        // Use square corners for all sides to avoid thin white gaps on edges
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(15),
-          ),
+          borderRadius: BorderRadius.zero,
         ),
         actions: [
           // Role badge

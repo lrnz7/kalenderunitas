@@ -17,10 +17,10 @@ void main() {
       ),
     ));
 
-    // Ensure button is present
-    expect(find.text('Tambah Event'), findsOneWidget);
+    // Ensure FAB add button is present
+    expect(find.byIcon(Icons.add), findsOneWidget);
 
-    // Tap the add event button with an injected handler
+    // Tap the add event FAB with an injected handler
     EventModel? captured;
     await tester.pumpWidget(MaterialApp(
       home: CalendarPage(
@@ -34,7 +34,7 @@ void main() {
       ),
     ));
 
-    await tester.tap(find.text('Tambah Event'));
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
 
     // Should be on EditEventPage (AppBar title)
@@ -84,8 +84,8 @@ void main() {
     // Wait for initial async loader to finish (events/holidays)
     await tester.pumpAndSettle();
 
-    // Tap add event
-    await tester.tap(find.text('Tambah Event'));
+    // Tap add event FAB
+    await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
 
     // Fill in title

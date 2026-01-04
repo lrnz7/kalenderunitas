@@ -103,6 +103,53 @@ class _MonthPainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.5;
 
+  // Cache for computed TextPainters to avoid repeated layout work per frame.
+  // Keyed by label + rounded maxWidth + color value so we reuse layouts when
+  // rendering many cells of the same size.
+  final Map<String, TextPainter> _markerPainterCache = {};
+  String? _cacheModelKey;
+
+  TextPainter _getFittedMarkerPainter(
+      String text, double maxWidth, TextStyle baseStyle, Color color) {
+    final roundedW = maxWidth.round();
+    final key = '${text}_${roundedW}_${color.value}_${baseStyle.fontSize}';
+    final cached = _markerPainterCache[key];
+    if (cached != null) return cached;
+
+    // Try stepping down from base font size to a sensible minimum.
+    double startSize = (baseStyle.fontSize ?? 11.0);
+    const double minSize = 8.0;
+    TextPainter tp;
+
+    for (double fs = startSize; fs >= minSize; fs -= 0.5) {
+      final ts = baseStyle.copyWith(fontSize: fs, color: color);
+      tp = TextPainter(
+        text: TextSpan(text: text.toUpperCase(), style: ts),
+        textDirection: ui.TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '...',
+      )..layout(minWidth: 0, maxWidth: maxWidth);
+
+      if (tp.width <= maxWidth || fs == minSize) {
+        _markerPainterCache[key] = tp;
+        return tp;
+      }
+    }
+
+    // Fallback (shouldn't happen due to loop above)
+    tp = TextPainter(
+      text: TextSpan(
+          text: text.toUpperCase(),
+          style: baseStyle.copyWith(fontSize: minSize, color: color)),
+      textDirection: ui.TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '...',
+    )..layout(minWidth: 0, maxWidth: maxWidth);
+
+    _markerPainterCache[key] = tp;
+    return tp;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final contentWidth = size.width - _horizontalPadding * 2 - _spacing * 6;
@@ -191,8 +238,15 @@ class _MonthPainter extends CustomPainter {
       final dy = y + 8;
       dayPainter.paint(canvas, Offset(dx, dy));
 
-      // Holiday (shortName) centered top area
+      // Holiday (icon + shortName) centered top area
       if (holiday != null && showHolidays) {
+        // layout values for icon + text
+        const double iconSize = 12.0;
+        const double iconSpacing = 4.0;
+
+        // First layout the short name reserving space for the icon
+        final maxHolidayWidth = (cellWidth - 6 - (iconSize + iconSpacing))
+            .clamp(0.0, cellWidth - 6);
         final hs = TextPainter(
           text: TextSpan(
               text: holiday.shortName,
@@ -200,14 +254,49 @@ class _MonthPainter extends CustomPainter {
           textAlign: TextAlign.center,
           textDirection: ui.TextDirection.ltr,
           maxLines: 2,
-        )..layout(minWidth: 0, maxWidth: cellWidth - 6);
+        )..layout(minWidth: 0, maxWidth: maxHolidayWidth);
 
-        final hx = x + (cellWidth - hs.width) / 2;
-        final hy = y + 26;
-        hs.paint(canvas, Offset(hx, hy));
+        // Icon painter: render the IconData glyph using its font
+        final iconTp = TextPainter(
+          text: TextSpan(
+            text: String.fromCharCode(holiday.icon.codePoint),
+            style: TextStyle(
+              fontSize: iconSize,
+              fontFamily: holiday.icon.fontFamily,
+              color: holiday.color,
+            ),
+          ),
+          textDirection: ui.TextDirection.ltr,
+        )..layout();
+
+        // If combined width still exceeds available space, relayout the text tighter
+        final combinedWidth = iconTp.width + iconSpacing + hs.width;
+        if (combinedWidth > (cellWidth - 6)) {
+          final adjustedMax = (cellWidth - 6 - iconTp.width - iconSpacing)
+              .clamp(0.0, cellWidth - 6);
+          hs.layout(minWidth: 0, maxWidth: adjustedMax);
+        }
+
+        final totalWidth = iconTp.width + iconSpacing + hs.width;
+        final hx = x + (cellWidth - totalWidth) / 2;
+
+        // Center vertically the icon and text within the holiday area
+        final combinedHeight =
+            iconTp.height > hs.height ? iconTp.height : hs.height;
+        final hyText = y + 26 + (combinedHeight - hs.height) / 2;
+        final hyIcon = y + 26 + (combinedHeight - iconTp.height) / 2;
+
+        iconTp.paint(canvas, Offset(hx, hyIcon));
+        hs.paint(canvas, Offset(hx + iconTp.width + iconSpacing, hyText));
       }
 
       // Event markers (paint up to 3 stacked from bottom)
+      // Clear and re-use cached TextPainters only when model contents differ.
+      if (_cacheModelKey != model.key) {
+        _markerPainterCache.clear();
+        _cacheModelKey = model.key;
+      }
+
       final markers = model.markersByDate[key] ?? [];
       if (markers.isNotEmpty && !(holiday != null && showHolidays)) {
         final markerHeight = 18.0;
@@ -233,14 +322,9 @@ class _MonthPainter extends CustomPainter {
             ..strokeWidth = 0.6;
           canvas.drawRRect(mr, border);
 
-          final tp = TextPainter(
-            text: TextSpan(
-                text: marker.label.toUpperCase(),
-                style: markerTextStyle.copyWith(color: marker.color)),
-            textDirection: ui.TextDirection.ltr,
-            maxLines: 1,
-            ellipsis: '...',
-          )..layout(minWidth: 0, maxWidth: mWidth - 12);
+          // Use cached, size-adaptive TextPainter so labels never truncate.
+          final tp = _getFittedMarkerPainter(
+              marker.label, mWidth - 12, markerTextStyle, marker.color);
 
           final tx = mx + 6;
           final ty = my + (markerHeight - tp.height) / 2;

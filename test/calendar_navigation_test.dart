@@ -16,7 +16,8 @@ void main() {
     ));
 
     // initial month shown in dropdown
-    final initialMonthText = DateFormat.MMMM().format(DateTime.now());
+    final initialMonthText =
+        DateFormat.MMMM().format(DateTime.now()).toUpperCase();
     expect(find.text(initialMonthText), findsOneWidget);
 
     // Tap next chevron to go to adjacent month
@@ -28,7 +29,7 @@ void main() {
     final nextMonth = DateTime.now().month == 12
         ? DateTime(DateTime.now().year + 1, 1)
         : DateTime(DateTime.now().year, DateTime.now().month + 1);
-    final nextMonthText = DateFormat.MMMM().format(nextMonth);
+    final nextMonthText = DateFormat.MMMM().format(nextMonth).toUpperCase();
 
     // During animation, header should still show initial month
     expect(find.text(initialMonthText), findsOneWidget);
@@ -66,7 +67,7 @@ void main() {
     // Process the selection (should be instant)
     await tester.pump();
 
-    // Header should now show the target month (at least one match)
-    expect(find.text(targetMonthName), findsWidgets);
+    // Header should now show the target month in uppercase (at least one match)
+    expect(find.text(targetMonthName.toUpperCase()), findsWidgets);
   });
 }

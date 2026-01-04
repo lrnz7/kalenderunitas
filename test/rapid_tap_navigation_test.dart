@@ -16,7 +16,8 @@ void main() {
       ),
     ));
 
-    final initialMonthText = DateFormat.MMMM().format(DateTime.now());
+    final initialMonthText =
+        DateFormat.MMMM().format(DateTime.now()).toUpperCase();
     expect(find.text(initialMonthText), findsOneWidget);
 
     // Rapidly tap next twice
@@ -34,7 +35,7 @@ void main() {
     final nextMonth = DateTime.now().month == 12
         ? DateTime(DateTime.now().year + 1, 1)
         : DateTime(DateTime.now().year, DateTime.now().month + 1);
-    final nextMonthText = DateFormat.MMMM().format(nextMonth);
+    final nextMonthText = DateFormat.MMMM().format(nextMonth).toUpperCase();
 
     expect(find.text(nextMonthText), findsWidgets);
   });

@@ -325,6 +325,14 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 10),
+                const Text(
+                  'v.1.3.1',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
               ],
             ),
           ),
