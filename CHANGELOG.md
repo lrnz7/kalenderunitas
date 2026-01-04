@@ -36,3 +36,13 @@ Format versi mengikuti Semantic Versioning (MAJOR.MINOR.PATCH).
 ## Catatan
 - Update ini berfokus pada peningkatan pengalaman pengguna (UX), konsistensi visual,
   dan stabilitas sistem tanpa mengubah data event yang sudah ada.
+
+
+## [1.3.0] - 2026-01-04
+### Added
+- Guardrails dan dokumentasi navigasi bulan vertikal
+- Widget test stres untuk mencegah loncatan multi-bulan
+- Debug hook dan counter khusus testing deterministik
+
+### Changed
+- Tidak ada perubahan perilaku runtime
