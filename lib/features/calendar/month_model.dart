@@ -61,10 +61,30 @@ class MonthModel {
 
   /// Build a MonthModel from global maps of events/holidays and a focused
   /// month. This performs all heavy work so the widget's build() remains cheap.
+  // Debug counter: incremented only in debug builds when creating models.
+  // This helps tests ensure models are created only at expected times
+  // (initial preparation and discrete commits), not during per-frame painting.
+  static int _debugFromMapsCalls = 0;
+
+  /// Reset the debug counter. Visible for tests only.
+  static void debugResetFromMapsCalls() {
+    _debugFromMapsCalls = 0;
+  }
+
+  /// Read the debug counter.
+  static int debugFromMapsCalls() => _debugFromMapsCalls;
+
   factory MonthModel.fromMaps(
       DateTime focused,
       Map<String, List<EventModel>> eventsMap,
       Map<String, List<HolidayModel>> holidaysMap) {
+    // Increment debug-only counter inside an assert so it has zero cost in
+    // release builds but is visible during tests and development.
+    assert(() {
+      _debugFromMapsCalls++;
+      return true;
+    }());
+
     final year = focused.year;
     final month = focused.month;
 

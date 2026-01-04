@@ -8,6 +8,20 @@ import 'month_model.dart';
 
 typedef DayTapCallback = void Function(DateTime day);
 
+/// MonthView renders a single month's grid using a CustomPainter.
+///
+/// Important guardrails:
+/// - This widget is intentionally simple and immutable; the authoritative
+///   month data comes from `MonthModel` and is prepared *outside* of build
+///   and paint paths. Do not perform data computation, async loading, or
+///   mapping inside `build()` or the painter; this prevents jank during
+///   scroll and keeps rendering deterministic.
+/// - The rendering uses `CustomPainter` and a fixed layout. Avoid introducing
+///   nested scroll views or wrapping this widget in additional scrollable
+///   parents. That can interfere with the vertical PageView used for month
+///   navigation and violate the performance guardrails.
+/// - If you need to change visuals, modify the painter without adding
+///   stateful animations that trigger rebuilds per frame.
 class MonthView extends StatelessWidget {
   final MonthModel model;
   final bool showHolidays;

@@ -39,9 +39,17 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focused = DateTime.now();
   // Guard to avoid overlapping month-change animations during rapid input
+  // This acts as a lightweight determinism lock: while true we ignore new inputs
+  // and avoid queuing or overlapping transitions.
   bool _isAnimatingMonthChange = false;
 
-  // PageView controller with the middle page as the current month
+  // PageView controller with the middle page as the current month.
+  // Rationale: keep a fixed 3-page carousel (prev/current/next) so only three
+  // MonthModels exist at any time. This prevents unbounded preloads, keeps
+  // builds cheap, and ensures deterministic snapping behavior.
+  // WARNING: Do not wrap this PageView in another scroll view or add nested
+  // scrollables inside the month viewport; doing so may break scrolling
+  // physics and lead to non-deterministic layout passes.
   late final PageController _pageController;
   final Duration _pageAnimationDuration = const Duration(milliseconds: 320);
 
@@ -62,7 +70,8 @@ class _CalendarPageState extends State<CalendarPage> {
     super.initState();
 
     // Page controller for a 3-page (prev/current/next) carousel.
-    _pageController = PageController(initialPage: 1);
+    // Use explicit viewportFraction to enforce full-page snapping.
+    _pageController = PageController(initialPage: 1, viewportFraction: 1.0);
 
     // Test injection path: if test data is provided, use it and skip
     // the async loader/listener for deterministic widget tests.
@@ -936,6 +945,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 Expanded(
                   child: PageView.builder(
                     controller: _pageController,
+                    scrollDirection: Axis.vertical,
                     itemCount: 3,
                     physics: const PageScrollPhysics(),
                     onPageChanged: (index) => _handlePageChanged(index),
@@ -1138,6 +1148,9 @@ class _CalendarPageState extends State<CalendarPage> {
   // Handle page settle events from PageView. If user navigated to page 0 or 2,
   // advance the logical focus and rebuild the 3-page cache, then reset the
   // PageController back to page 1 without animation to keep the carousel stable.
+  // This method follows the strict rule: compute NEXT models synchronously,
+  // then update state in a single atomic setState so no mid-frame swapping
+  // occurs. This prevents visual overlap and ensures deterministic rendering.
   void _handlePageChanged(int index) {
     if (index == 1) return;
 
@@ -1209,9 +1222,12 @@ class _CalendarPageState extends State<CalendarPage> {
         return EditEventPage(
           event: newEvent,
           onSave: (created) async {
+            final navigator = Navigator.of(context);
             await widget.onCreateEvent!(created);
-            // Close the editor
-            Navigator.of(context).pop();
+            // Close the editor only if still mounted (avoid using context across
+            // async gaps which can cause runtime issues when widget is disposed).
+            if (!mounted) return;
+            navigator.pop();
           },
         );
       }));
@@ -1226,10 +1242,12 @@ class _CalendarPageState extends State<CalendarPage> {
         return EditEventPage(
           event: newEvent,
           onSave: (created) async {
+            final navigator = Navigator.of(context);
             await DataLoader.addEvent(created);
             // Reload data to reflect the saved event
             _loadData();
-            Navigator.of(context).pop();
+            if (!mounted) return;
+            navigator.pop();
           },
         );
       }));
@@ -1239,4 +1257,21 @@ class _CalendarPageState extends State<CalendarPage> {
     // Default: navigate to admin page for full add event flow
     Navigator.pushNamed(context, '/admin');
   }
+
+  // ---------------------------
+  // Testing helpers (visible in debug only)
+  // ---------------------------
+  // Expose a few small helpers so guardrail tests can assert internal
+  // invariants (recentering, transition lock, focused month). These are
+  // annotated for testing visibility and intentionally small to avoid
+  // exposing implementation complexity in production code.
+  @visibleForTesting
+  double? debugCurrentPage() =>
+      _pageController.hasClients ? _pageController.page : null;
+
+  @visibleForTesting
+  bool debugIsTransitioning() => _isAnimatingMonthChange;
+
+  @visibleForTesting
+  DateTime debugFocused() => _focused;
 }
