@@ -66,64 +66,80 @@ class _MainPageState extends State<MainPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(
-              'assets/images/logo_unitas.png',
-              width: 32,
-              height: 32,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(
-                  Icons.calendar_month,
-                  color: Colors.white,
-                  size: 24,
-                );
-              },
-            ),
-            const SizedBox(width: 12),
-            Text(
-              _getAppBarTitle(),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 16,
+        // Use a full-width title with Stack+Align to create strict 3 zones
+        // (left: role badge, center: title, right: logout) so the center
+        // title remains absolutely centered regardless of left/right widths.
+        titleSpacing: 0,
+        automaticallyImplyLeading: false,
+        title: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          child: Stack(
+            children: [
+              // LEFT: Role badge (anchored)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 220),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Container(
+                      key: const Key('topbar_user_info'),
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color:
+                            widget.isAdmin ? Colors.amber[700] : Colors.green,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.isAdmin ? 'ADMIN' : 'USER',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+
+              // CENTER: existing title (absolutely centered)
+              Align(
+                alignment: Alignment.center,
+                child: Text(
+                  _getAppBarTitle(),
+                  key: const Key('topbar_title'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+
+              // RIGHT: Logout button (anchored)
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  key: const Key('topbar_logout'),
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  onPressed: _logout,
+                  tooltip: 'Logout',
+                ),
+              ),
+            ],
+          ),
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: const Color(0xFF0066CC),
         elevation: 3,
         // Use square corners for all sides to avoid thin white gaps on edges
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.zero,
         ),
-        actions: [
-          // Role badge
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: widget.isAdmin ? Colors.amber[700] : Colors.green,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              widget.isAdmin ? 'ADMIN' : 'USER',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _logout,
-            tooltip: 'Logout',
-          ),
-        ],
+        actions: [],
       ),
       body: pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
