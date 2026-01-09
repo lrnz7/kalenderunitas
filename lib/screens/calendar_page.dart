@@ -220,6 +220,35 @@ class _CalendarPageState extends State<CalendarPage> {
     return DivisionUtils.colorFor(division);
   }
 
+  /// Canonical division label normalization for calendar date cells.
+  /// Maps division names to fixed 4-character uppercase labels.
+  /// This is the ONLY place where division label mapping occurs.
+  String normalizeDivisionLabel(String? division) {
+    if (division == null) return '';
+
+    final lowerDiv = division.toLowerCase();
+    switch (lowerDiv) {
+      case 'psdm':
+        return 'PSDM';
+      case 'umum':
+        return 'UMUM';
+      case 'pppm':
+        return 'PPPM';
+      case 'komwira':
+        return 'KOMW';
+      case 'bph':
+        return 'BPH';
+      case 'unitas si':
+      case 'unitas':
+        return 'UNIT';
+      default:
+        // Fallback for unknown divisions
+        return division.length > 4
+            ? division.substring(0, 4).toUpperCase()
+            : division.toUpperCase();
+    }
+  }
+
   String _getDivisionAbbreviation(String? division) {
     if (division == null) return '';
 
@@ -278,14 +307,18 @@ class _CalendarPageState extends State<CalendarPage> {
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                DivisionUtils.displayName(event.division),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+              child: MediaQuery(
+                data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+                child: Text(
+                  normalizeDivisionLabel(event.division),
+                  overflow: TextOverflow.clip,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
                 ),
               ),
             ),
@@ -427,12 +460,18 @@ class _CalendarPageState extends State<CalendarPage> {
                       width: 0.5,
                     ),
                   ),
-                  child: Text(
-                    _getDivisionAbbreviation(dayEvents.first.division),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: _getDivisionColor(dayEvents.first.division),
+                  child: MediaQuery(
+                    data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+                    child: Text(
+                      normalizeDivisionLabel(dayEvents.first.division),
+                      overflow: TextOverflow.clip,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: _getDivisionColor(dayEvents.first.division),
+                      ),
                     ),
                   ),
                 ),
@@ -886,113 +925,129 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               ),
 
-              // Center absolute cluster: prev / month / next (horizontally scrollable on narrow screens)
+              // Center absolute cluster: prev / month / next
+              // Responsive: on narrow devices (<420dp) use a Wrap to avoid
+              // absolute overlap; otherwise keep the original horizontally
+              // scrollable Row behavior.
               Align(
                 alignment: Alignment.center,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: _navSpacing),
-                        child: IconButton(
-                          key: const Key('prev_button'),
-                          icon: const Icon(Icons.chevron_left,
-                              color: Colors.white),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                              minWidth: _navMinButtonSize,
-                              minHeight: _navMinButtonSize),
-                          iconSize: _navIconSize,
-                          onPressed: _isAnimatingMonthChange
-                              ? null
-                              : () {
-                                  final newFocused = DateTime(
-                                      _focused.year, _focused.month - 1, 1);
-                                  _requestMonthChange(newFocused);
-                                },
-                        ),
-                      ),
+                child: Builder(builder: (context) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final isPhone = screenWidth < 420.0;
 
-                      // Month dropdown (fixed min width so it aligns with icons)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 120),
-                        child: Center(
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<int>(
-                              key: const Key('month_dropdown'),
-                              value: _focused.month,
-                              dropdownColor: Colors.white,
-                              iconEnabledColor: Colors.white,
-                              isDense: true,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold),
-                              items: List.generate(12, (i) => i + 1)
-                                  .map((m) => DropdownMenuItem(
-                                        value: m,
-                                        child: Text(
-                                          DateFormat.MMMM()
-                                              .format(DateTime(2000, m)),
-                                          style: const TextStyle(
-                                            color: Color(0xFF0066CC),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ))
-                                  .toList(),
-                              selectedItemBuilder: (context) => List.generate(
-                                12,
-                                (i) => Center(
-                                  child: Text(
-                                    DateFormat.MMMM()
-                                        .format(DateTime(2000, i + 1))
-                                        .toUpperCase(),
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14),
-                                  ),
-                                ),
+                  Widget prevButton = Padding(
+                    padding: EdgeInsets.symmetric(horizontal: _navSpacing),
+                    child: IconButton(
+                      key: const Key('prev_button'),
+                      icon: const Icon(Icons.chevron_left, color: Colors.white),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: _navMinButtonSize,
+                          minHeight: _navMinButtonSize),
+                      iconSize: _navIconSize,
+                      onPressed: _isAnimatingMonthChange
+                          ? null
+                          : () {
+                              final newFocused = DateTime(
+                                  _focused.year, _focused.month - 1, 1);
+                              _requestMonthChange(newFocused);
+                            },
+                    ),
+                  );
+
+                  Widget monthDropdown = ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 120),
+                    child: Center(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          key: const Key('month_dropdown'),
+                          value: _focused.month,
+                          dropdownColor: Colors.white,
+                          iconEnabledColor: Colors.white,
+                          isDense: true,
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
+                          items: List.generate(12, (i) => i + 1)
+                              .map((m) => DropdownMenuItem(
+                                    value: m,
+                                    child: Text(
+                                      DateFormat.MMMM()
+                                          .format(DateTime(2000, m)),
+                                      style: const TextStyle(
+                                        color: Color(0xFF0066CC),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
+                          selectedItemBuilder: (context) => List.generate(
+                            12,
+                            (i) => Center(
+                              child: Text(
+                                DateFormat.MMMM()
+                                    .format(DateTime(2000, i + 1))
+                                    .toUpperCase(),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14),
                               ),
-                              onChanged: _isAnimatingMonthChange
-                                  ? null
-                                  : (m) {
-                                      if (m != null) {
-                                        final newFocused =
-                                            DateTime(_focused.year, m, 1);
-                                        _requestMonthChange(newFocused);
-                                      }
-                                    },
                             ),
                           ),
-                        ),
-                      ),
-
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: _navSpacing),
-                        child: IconButton(
-                          key: const Key('next_button'),
-                          icon: const Icon(Icons.chevron_right,
-                              color: Colors.white),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                              minWidth: _navMinButtonSize,
-                              minHeight: _navMinButtonSize),
-                          iconSize: _navIconSize,
-                          onPressed: _isAnimatingMonthChange
+                          onChanged: _isAnimatingMonthChange
                               ? null
-                              : () {
-                                  final newFocused = DateTime(
-                                      _focused.year, _focused.month + 1, 1);
-                                  _requestMonthChange(newFocused);
+                              : (m) {
+                                  if (m != null) {
+                                    final newFocused =
+                                        DateTime(_focused.year, m, 1);
+                                    _requestMonthChange(newFocused);
+                                  }
                                 },
                         ),
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+
+                  Widget nextButton = Padding(
+                    padding: EdgeInsets.symmetric(horizontal: _navSpacing),
+                    child: IconButton(
+                      key: const Key('next_button'),
+                      icon:
+                          const Icon(Icons.chevron_right, color: Colors.white),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                          minWidth: _navMinButtonSize,
+                          minHeight: _navMinButtonSize),
+                      iconSize: _navIconSize,
+                      onPressed: _isAnimatingMonthChange
+                          ? null
+                          : () {
+                              final newFocused = DateTime(
+                                  _focused.year, _focused.month + 1, 1);
+                              _requestMonthChange(newFocused);
+                            },
+                    ),
+                  );
+
+                  if (isPhone) {
+                    return Wrap(
+                      direction: Axis.horizontal,
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: _navSpacing,
+                      runSpacing: 4,
+                      children: [prevButton, monthDropdown, nextButton],
+                    );
+                  }
+
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [prevButton, monthDropdown, nextButton],
+                    ),
+                  );
+                }),
               ),
             ],
           ),

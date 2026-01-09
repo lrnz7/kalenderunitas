@@ -1,0 +1,2 @@
+E:/Games/kalenderunitas/kalender_fix/android/app/.cxx/profile/492u430p/arm64-v8a/CMakeFiles/edit_cache.dir
+E:/Games/kalenderunitas/kalender_fix/android/app/.cxx/profile/492u430p/arm64-v8a/CMakeFiles/rebuild_cache.dir
