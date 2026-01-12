@@ -98,6 +98,30 @@ class _MonthPainter extends CustomPainter {
   static const double _verticalPadding = 12.0;
   static const double _spacing = 8.0;
 
+  // Increase painter's per-row height by this multiplier (20-30% recommended)
+  // This affects only visual painting; layout/tap handling remains unchanged.
+  static const double _heightMultiplier = 1.25;
+
+  // Event bar indicator constants (fixed sizes and offsets to ensure deterministic painting)
+  static const double _barHeight = 3.5; // px
+  static const double _barHeightSmall = 2.5; // px when vertical space tight
+  static const double _barSpacing = 2.0; // vertical gap between bars
+  static const int _maxVisibleBars = 3; // show up to 3 bars
+  static const double _barWidthPercent = 0.65; // 65% of cell width
+  static const double _barWidthPercentSmall = 0.6; // smaller percent when tight
+  static const double _barBottomMargin =
+      12.0; // px margin from bottom of cell to bars
+  static const double _overflowBoxWidth = 18.0;
+  static const double _overflowBoxHeight = 14.0;
+  static const double _overflowFontSize = 8.0;
+
+  // Holiday badge constants (top-left small badge)
+  static const double _holidayBadgeWidth = 26.0;
+  static const double _holidayBadgeHeight = 16.0;
+  static const double _holidayBadgeLeft = 6.0;
+  static const double _holidayBadgeTop = 6.0;
+  static const double _holidayBadgeFontSize = 9.0;
+
   final Paint _bgPaint = Paint();
   final Paint _borderPaint = Paint()
     ..style = PaintingStyle.stroke
@@ -238,25 +262,43 @@ class _MonthPainter extends CustomPainter {
       final dy = y + 8;
       dayPainter.paint(canvas, Offset(dx, dy));
 
-      // Holiday (icon + shortName) centered top area
+      // Holiday visual: center icon + display name, with optional subtle tint.
       if (holiday != null && showHolidays) {
-        // layout values for icon + text
-        const double iconSize = 12.0;
-        const double iconSpacing = 4.0;
+        // Optional subtle full-cell tint using holiday color (alpha <=5%)
+        final tintPaint = Paint()..color = holiday.color.withAlpha((0.05 * 255).round());
+        canvas.drawRRect(rrect, tintPaint);
 
-        // First layout the short name reserving space for the icon
-        final maxHolidayWidth = (cellWidth - 6 - (iconSize + iconSpacing))
-            .clamp(0.0, cellWidth - 6);
-        final hs = TextPainter(
-          text: TextSpan(
-              text: holiday.shortName,
-              style: holidayStyle.copyWith(color: holiday.color)),
-          textAlign: TextAlign.center,
-          textDirection: ui.TextDirection.ltr,
-          maxLines: 2,
-        )..layout(minWidth: 0, maxWidth: maxHolidayWidth);
+        // Reserve space above bars: estimate bars top using worst-case bars group height.
+        final double maxBarsGroupHeight = _maxVisibleBars * _barHeight + (_maxVisibleBars - 1) * _barSpacing;
+        final double barsTopEstimate = y + cellHeight - _barBottomMargin - maxBarsGroupHeight - 2.0;
 
-        // Icon painter: render the IconData glyph using its font
+        // Icon & label sizes (fixed defaults)
+        double iconSize = 14.0; // smaller than day number (16)
+        double labelFontSize = 12.0;
+        const double gap = 4.0;
+
+        double groupHeight = iconSize + gap + labelFontSize;
+
+        // Ensure group fits between date area and barsTopEstimate. Calculate min allowed top due to date number.
+        final double minIconTop = dy + dayPainter.height + 4.0;
+        double avail = barsTopEstimate - minIconTop - 4.0;
+
+        if (avail < groupHeight) {
+          // Shrink icon and label if absolutely necessary, but keep legible
+          final double scale = (avail > 0) ? (avail / groupHeight) : 0.8;
+          final double clampedScale = scale.clamp(0.7, 1.0);
+          iconSize = (iconSize * clampedScale).clamp(10.0, iconSize);
+          labelFontSize = (labelFontSize * clampedScale).clamp(10.0, labelFontSize);
+          groupHeight = iconSize + gap + labelFontSize;
+        }
+
+        // Compute group top to be slightly above center of the upper area
+        final double upperCenter = y + (barsTopEstimate - y) / 2.0 - 6.0;
+        double groupTop = upperCenter - groupHeight / 2.0;
+        if (groupTop < minIconTop) groupTop = minIconTop;
+        if (groupTop + groupHeight > barsTopEstimate) groupTop = barsTopEstimate - groupHeight;
+
+        // Draw centered icon (use holiday.icon glyph)
         final iconTp = TextPainter(
           text: TextSpan(
             text: String.fromCharCode(holiday.icon.codePoint),
@@ -269,79 +311,118 @@ class _MonthPainter extends CustomPainter {
           textDirection: ui.TextDirection.ltr,
         )..layout();
 
-        // If combined width still exceeds available space, relayout the text tighter
-        final combinedWidth = iconTp.width + iconSpacing + hs.width;
-        if (combinedWidth > (cellWidth - 6)) {
-          final adjustedMax = (cellWidth - 6 - iconTp.width - iconSpacing)
-              .clamp(0.0, cellWidth - 6);
-          hs.layout(minWidth: 0, maxWidth: adjustedMax);
+        final iconX = x + (cellWidth - iconTp.width) / 2.0;
+        final iconY = groupTop + (iconSize - iconTp.height) / 2.0;
+        iconTp.paint(canvas, Offset(iconX, iconY));
+
+        // Holiday display name: Title Case, human-readable, max 12 chars with ellipsis
+        String label = holiday.shortName.trim();
+        if (label.isEmpty) label = holiday.title.trim();
+        // Convert to Title Case
+        label = label.split(RegExp(r'\s+')).map((w) => w.isEmpty ? w : (w[0].toUpperCase() + w.substring(1).toLowerCase())).join(' ');
+
+        final labelTp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: TextStyle(
+              fontSize: labelFontSize,
+              fontWeight: FontWeight.w600,
+              color: holiday.color,
+            ),
+          ),
+          textDirection: ui.TextDirection.ltr,
+          maxLines: 1,
+          ellipsis: '\u2026',
+          textScaleFactor: 1.0,
+        )..layout(minWidth: 0, maxWidth: cellWidth * 0.9);
+
+        // Truncate by max chars if needed (ensure ellipsis will be applied by layout)
+        if (label.length > 12) {
+          label = label.substring(0, 12);
         }
 
-        final totalWidth = iconTp.width + iconSpacing + hs.width;
-        final hx = x + (cellWidth - totalWidth) / 2;
-
-        // Center vertically the icon and text within the holiday area
-        final combinedHeight =
-            iconTp.height > hs.height ? iconTp.height : hs.height;
-        final hyText = y + 26 + (combinedHeight - hs.height) / 2;
-        final hyIcon = y + 26 + (combinedHeight - iconTp.height) / 2;
-
-        iconTp.paint(canvas, Offset(hx, hyIcon));
-        hs.paint(canvas, Offset(hx + iconTp.width + iconSpacing, hyText));
+        final labelX = x + (cellWidth - labelTp.width) / 2.0;
+        final labelY = groupTop + iconSize + gap + (labelFontSize - labelTp.height) / 2.0;
+        labelTp.paint(canvas, Offset(labelX, labelY));
       }
 
-      // Event markers (paint up to 3 stacked from bottom)
-      // Clear and re-use cached TextPainters only when model contents differ.
-      if (_cacheModelKey != model.key) {
-        _markerPainterCache.clear();
-        _cacheModelKey = model.key;
-      }
-
+      // Pre-read markers for this cell (used for event bar indicators)
       final markers = model.markersByDate[key] ?? [];
-      if (markers.isNotEmpty && !(holiday != null && showHolidays)) {
-        final markerHeight = 18.0;
-        final markerMargin = 6.0;
-        for (var mIndex = 0; mIndex < markers.length && mIndex < 3; mIndex++) {
-          final marker = markers[mIndex];
 
-          final mx = x + 6;
-          final my = y + cellHeight - 8 - (mIndex + 1) * (markerHeight + 4);
-          final mWidth = cellWidth - 12;
-
-          final mr = RRect.fromRectAndRadius(
-              Rect.fromLTWH(mx, my, mWidth, markerHeight),
-              const Radius.circular(4));
-
-          final p = Paint()
-            ..color = marker.color.withAlpha((0.18 * 255).round());
-          canvas.drawRRect(mr, p);
-
-          final border = Paint()
-            ..style = PaintingStyle.stroke
-            ..color = marker.color.withAlpha((0.4 * 255).round())
-            ..strokeWidth = 0.6;
-          canvas.drawRRect(mr, border);
-
-          // Use cached, size-adaptive TextPainter so labels never truncate.
-          final tp = _getFittedMarkerPainter(
-              marker.label, mWidth - 12, markerTextStyle, marker.color);
-
-          final tx = mx + 6;
-          final ty = my + (markerHeight - tp.height) / 2;
-          tp.paint(canvas, Offset(tx, ty));
-        }
-
-        if (markers.length > 3) {
-          final extra = markers.length - 3;
-          final tx = x + 6;
-          final ty = y + cellHeight - 8 - (3) * (18.0 + 4) + 2;
-          final plus = TextPainter(
-            text: TextSpan(text: '+$extra', style: plusTextStyle),
-            textDirection: ui.TextDirection.ltr,
-          )..layout();
-          plus.paint(canvas, Offset(tx, ty));
+      // Convert markers into unique division colors (preserve order, dedupe by division)
+      final seenDivisions = <String>{};
+      final uniqueColors = <Color>[];
+      for (var m in markers) {
+        final divKey = (m.division ?? '');
+        if (!seenDivisions.contains(divKey)) {
+          seenDivisions.add(divKey);
+          uniqueColors.add(m.color);
         }
       }
+
+      if (uniqueColors.isNotEmpty) {
+        final int distinct = uniqueColors.length;
+        final int visible =
+            distinct > _maxVisibleBars ? _maxVisibleBars : distinct;
+
+        double barH = _barHeight;
+        double barW = cellWidth * _barWidthPercent;
+        double spacing = _barSpacing;
+
+        // If vertical space is tight, shrink bars slightly (do NOT shrink text or holiday icon)
+        if (cellHeight < 48.0) {
+          barH = _barHeightSmall;
+          barW = cellWidth * _barWidthPercentSmall;
+          spacing = 1.0;
+        }
+
+        final double groupHeight = visible * barH + (visible - 1) * spacing;
+        final double startTop = y + cellHeight - _barBottomMargin - groupHeight;
+        final double left = x + (cellWidth - barW) / 2.0;
+
+        // Paint up to _maxVisibleBars thin horizontal rounded bars
+        for (var bi = 0; bi < visible; bi++) {
+          final cy = startTop + bi * (barH + spacing);
+          final r = RRect.fromRectAndRadius(
+              Rect.fromLTWH(left, cy, barW, barH), Radius.circular(barH / 2.0));
+          final paint = Paint()..color = uniqueColors[bi];
+          canvas.drawRRect(r, paint);
+        }
+
+        // Overflow indicator: small neutral +N box to the right of bars group
+        if (distinct > _maxVisibleBars) {
+          final overflowCount = distinct - _maxVisibleBars;
+          final double overflowLeft = x + (cellWidth + barW) / 2.0 + 6.0;
+          final double overflowTop =
+              startTop + (groupHeight - _overflowBoxHeight) / 2.0;
+
+          final overflowR = RRect.fromRectAndRadius(
+              Rect.fromLTWH(overflowLeft, overflowTop, _overflowBoxWidth,
+                  _overflowBoxHeight),
+              const Radius.circular(4));
+          canvas.drawRRect(overflowR, Paint()..color = Colors.grey[300]!);
+
+          final overflowTp = TextPainter(
+            text: TextSpan(
+              text: '+$overflowCount',
+              style: TextStyle(
+                  fontSize: _overflowFontSize, color: Colors.grey[600]),
+            ),
+            textDirection: ui.TextDirection.ltr,
+            maxLines: 1,
+            textScaleFactor: 1.0,
+          )..layout(minWidth: 0, maxWidth: _overflowBoxWidth - 2);
+
+          final double tx =
+              overflowLeft + (_overflowBoxWidth - overflowTp.width) / 2.0;
+          final double ty = overflowTop +
+              (_overflowBoxHeight - overflowTp.height) / 2.0 -
+              1.0;
+          overflowTp.paint(canvas, Offset(tx, ty));
+        }
+      }
+
+
     }
   }
 

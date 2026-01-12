@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event_model.dart';
 import '../models/holiday_model.dart';
@@ -276,211 +275,14 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  Widget _buildEventIndicator(DateTime day, EventModel event) {
-    final color = _getDivisionColor(event.division);
-    final start = event.startDateTime;
-    final end = event.endDateTime ?? start;
-
-    final key = DateFormat('yyyy-MM-dd').format(day);
-    final isStart = DateFormat('yyyy-MM-dd').format(start) == key;
-    final isEnd = DateFormat('yyyy-MM-dd').format(end) == key;
-
-    final borderRadius = BorderRadius.horizontal(
-      left: Radius.circular(isStart ? 6 : 0),
-      right: Radius.circular(isEnd ? 6 : 0),
-    );
-
-    return Tooltip(
-      message: DivisionUtils.displayName(event.division),
-      child: InkWell(
-        onLongPress: () => _showDayEvents(day),
-        child: Container(
-          height: 18,
-          margin: const EdgeInsets.only(bottom: 6),
-          decoration: BoxDecoration(
-            color: color.withAlpha((0.18 * 255).round()),
-            borderRadius: borderRadius,
-            border: Border.all(
-                color: color.withAlpha((0.4 * 255).round()), width: 0.6),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
-                child: Text(
-                  normalizeDivisionLabel(event.division),
-                  overflow: TextOverflow.clip,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDayCell(DateTime day, DateTime currentMonth) {
-    final isCurrentMonth = _isCurrentMonth(day);
-    final isToday = _isToday(day);
-    final dayEvents = _getEventsForDay(day);
-    final dayHolidays = _getHolidaysForDay(day);
-    final hasEvents = dayEvents.isNotEmpty;
-    final hasHoliday = dayHolidays.isNotEmpty;
-
-    final HolidayModel? holiday = hasHoliday ? dayHolidays.first : null;
-
-    return GestureDetector(
-      onTap: () => _showDayEvents(day),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: isToday
-              ? const Color.fromRGBO(0, 102, 204, 0.1)
-              : (isCurrentMonth ? Colors.white : Colors.grey[100]!),
-          border: Border.all(
-            color: isToday
-                ? const Color(0xFF0066CC)
-                : (hasHoliday && _showHolidays
-                    ? holiday!.color.withAlpha((0.3 * 255).round())
-                    : (isCurrentMonth
-                        ? Colors.grey.shade200
-                        : Colors.grey.shade100)),
-            width: 1.5,
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Day Number (top right)
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Text(
-                day.day.toString(),
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isCurrentMonth
-                      ? (isToday
-                          ? const Color(0xFF0066CC)
-                          : (hasHoliday && _showHolidays
-                              ? holiday!.color
-                              : (day.weekday == 7
-                                  ? Colors.red
-                                  : Colors.black87)))
-                      : Colors.grey[400],
-                ),
-              ),
-            ),
-
-            // HOLIDAY DISPLAY - CENTER (NEW!)
-            if (hasHoliday && _showHolidays)
-              Positioned(
-                top: 26,
-                left: 0,
-                right: 0,
-                child: Column(
-                  children: [
-                    // Holiday icon
-                    Icon(
-                      holiday!.icon,
-                      size: 16,
-                      color: holiday.color,
-                    ),
-                    const SizedBox(height: 2),
-                    // Short holiday name
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Text(
-                        holiday.shortName,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: holiday.color,
-                          height: 1.0,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // EVENT DISPLAY - BOTTOM (support multi-day series indicator)
-            if (hasEvents && (!hasHoliday || !_showHolidays))
-              Positioned(
-                bottom: 8,
-                left: 6,
-                right: 6,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Render up to 3 stacked indicators (more -> +n)
-                    for (var i = 0; i < dayEvents.length && i < 3; i++)
-                      _buildEventIndicator(day, dayEvents[i]),
-                    if (dayEvents.length > 3)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          '+${dayEvents.length - 3}',
-                          style:
-                              const TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-            // Jika ada BOTH holiday dan event
-            if (hasEvents && hasHoliday && _showHolidays)
-              Positioned(
-                bottom: 6,
-                left: 6,
-                right: 6,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _getDivisionColor(dayEvents.first.division)
-                        .withAlpha((0.15 * 255).round()),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: _getDivisionColor(dayEvents.first.division)
-                          .withAlpha((0.3 * 255).round()),
-                      width: 0.5,
-                    ),
-                  ),
-                  child: MediaQuery(
-                    data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
-                    child: Text(
-                      normalizeDivisionLabel(dayEvents.first.division),
-                      overflow: TextOverflow.clip,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: _getDivisionColor(dayEvents.first.division),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Legacy day cell builder removed: rendering is now handled by
+  // `MonthView` (lib/features/calendar/month_view.dart) which uses a
+  // CustomPainter for deterministic, high-performance rendering. The old
+  // `_buildDayCell` implementation remained for historical reasons and has
+  // been archived to avoid duplicate rendering paths.
+  // See `MonthView._MonthPainter.paint` for the canonical day-cell visuals.
+  // NOTE: Do not reintroduce text-based division labels inside day cells; the
+  // painter now uses visual-only markers (dots and icon-only holidays).
 
   void _showDayEvents(DateTime day) {
     final events = _getEventsForDay(day);
@@ -1205,24 +1007,10 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // Isolate month grid into a separate method so each month has a stable
   // widget instance during transitions. This minimizes mid-animation rebuilds.
-  Widget _buildMonthGrid(List<DateTime> monthDays, DateTime monthFocus) {
-    return GridView.builder(
-      key: ValueKey('${monthFocus.year}-${monthFocus.month}'),
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 0.9,
-      ),
-      itemCount: monthDays.length,
-      itemBuilder: (context, index) {
-        final day = monthDays[index];
-        return _buildDayCell(day, monthFocus);
-      },
-    );
-  }
+  // Legacy month grid builder removed: Month grids are now rendered by
+  // `MonthView` (CustomPainter) to ensure consistent cross-platform visuals
+  // and to centralize rendering logic. The prior GridView-based renderer is
+  // archived and intentionally left out to avoid duplicate rendering paths.
 
   // Prepare the three month models (prev/current/next) synchronously.
   void _prepareMonthModelsFor(DateTime focused) {

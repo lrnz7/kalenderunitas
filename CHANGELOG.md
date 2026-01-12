@@ -111,3 +111,28 @@ Format versi mengikuti Semantic Versioning (MAJOR.MINOR.PATCH).
 ## Catatan
 - Versi 1.3.x berfokus pada stabilisasi internal, konsistensi layout,
   dan peningkatan kualitas struktur UI tanpa menambah fitur baru bagi pengguna akhir.
+
+
+
+###  [1.3.4] – 2026-01-12
+### Peningkatan UI & UX
+- Penyempurnaan tampilan indikator event pada tampilan bulan menggunakan bar horizontal berwarna.
+- Setiap tanggal kini menampilkan maksimal tiga bar warna sebagai representasi divisi event.
+- Jika jumlah divisi event melebihi batas visual, ditampilkan indikator +N sebagai penanda event tambahan.
+- Perbaikan tampilan hari libur nasional dengan ikon dan nama holiday yang ditampilkan di tengah sel kalender.
+- Hirarki visual tanggal, holiday, dan event disusun ulang agar informasi lebih mudah dipahami saat first glance.
+
+### Perbaikan & Stabilitas
+- Seluruh logika rendering indikator event dan holiday dikunci di level painter.
+- Area render tanggal, holiday, dan event dipisahkan secara eksplisit untuk mencegah overlap visual.
+- Penggunaan ukuran elemen dan teks berbasis nilai tetap untuk menjaga konsistensi lintas perangkat.
+- Tidak ada perubahan pada struktur navigasi, state aplikasi, maupun perilaku interaksi pengguna.
+
+### Testing & Verifikasi
+- Build dan runtime Chrome berjalan stabil tanpa error kompilasi.
+- Validasi visual memastikan tidak ada regresi pada TopBar dan Navbar baseline versi 1.3.2 dan 1.3.3.
+- Perilaku navigasi bulan dan tap pada sel kalender tetap konsisten dengan versi sebelumnya.
+
+### Catatan
+- Versi 1.3.x berfokus pada stabilisasi internal, konsistensi layout,
+dan peningkatan kualitas struktur UI tanpa menambah fitur baru bagi pengguna akhir.
